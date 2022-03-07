@@ -50,6 +50,6 @@ If you encounter any issues feel free to submit an issue report.
 
 Users that are accessing VDI instances need to have the following permissions assigned for each VM they access:
 
-VM.PowerMgmt
-VM.Console
-VM.Audit
+* VM.PowerMgmt
+* VM.Console
+* VM.Audit
