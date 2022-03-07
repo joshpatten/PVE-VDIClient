@@ -1,0 +1,29 @@
+[General]
+# This is the title that is diplayed to the user
+title = VDI Login
+# This is the PySimpleGui Theme that is used. Run pvevdi.py with flag `--list_themes` for a list of themes
+theme = LightBlue
+# Program Icon
+icon = vdiicon.ico
+# Logo displayed on all windows
+logo = vdiclient.png
+# Enable Kiosk mode, which does not allow the user to close anything
+kiosk = False
+
+[Authentication]
+# This is the authentication backend that will be used to authenticate
+auth_backend = pve
+# If enabled, 2FA TOTP entry dialog will show
+auth_totp = false
+# If disabled, TLS certificate will not be checked
+tls_verify = false
+
+[Hosts]
+# Hosts are entered as `IP/FQDN = Port`
+10.10.10.100 = 8006
+pve1.example.com = 8006
+
+[SpiceProxyRedirect]
+# The Spice Proxy provided by the Proxmox API may need to have it's host/port rewritten
+# These rewrite rules are written `IP:port = IP:port`
+pve1.example.com:3128 = 123.123.123.123:6000

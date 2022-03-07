@@ -1,0 +1,28 @@
+{
+	"upgrade_guid" : "46cbad92-353e-4b28-9bee-83950991dad8",
+	"version" : "1.0.0",
+	"product_name" : "VDI Client",
+	"manufacturer" : "Josh Patten",
+	"name" : "VDI Client",
+	"name_base" : "vdiclient",
+	"comments" : "This is the Proxmox VDI client. This client interfaces with Proxmox requires that virt-viewer be installed.",
+	"installdir" : "VDIClient",
+	"installscope" : "perMachine",
+	"license_file" : "License.rtf",
+	"startmenu_shortcut": "vdiclient.exe",
+	"desktop_shortcut": "vdiclient.exe",
+	"parts" : [
+		{
+			"id" : "MainProgram",
+			"title" : "VDI Client",
+			"description" : "Proxmox VDI Client",
+			"absent" : "disallow",
+			"staged_dir" : "vdiclient"
+		}
+	],
+	"major_upgrade": {
+		"Schedule": "afterInstallInitialize",
+		"DowngradeErrorMessage": "A later version of [ProductName] is already installed",
+		"AllowSameVersionUpgrades": "yes"
+	}
+}
