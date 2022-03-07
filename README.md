@@ -45,3 +45,11 @@ PVE VDI Client **REQUIRES** a configuration file to function. The client searche
 Please refer to **vdiclient.ini.example** for all available config file options
 
 If you encounter any issues feel free to submit an issue report.
+
+## Proxmox Permission Requirements
+
+Users that are accessing VDI instances need to have the following permissions assigned for each VM they access:
+
+VM.PowerMgmt
+VM.Console
+VM.Audit
