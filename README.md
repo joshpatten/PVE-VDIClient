@@ -4,7 +4,7 @@ This project's focus is to create a simple VDI client intended for mass deployme
 
 ![Login Screen](screenshots/login.png)
 
-![Login Screen with OTP](screenshots/login.png)
+![Login Screen with OTP](screenshots/login-totp.png)
 
 ![VDI View](screenshots/vdiview.png)
 
