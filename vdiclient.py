@@ -253,7 +253,7 @@ def setcmd():
 			cmdresult = result.decode('utf-8')
 			cmdparts = cmdresult.split('=')
 			for row in csv.reader([cmdparts[1]], delimiter = ' ', quotechar = '"'):
-				G.cmd = row[0]
+				G.vvcmd = row[0]
 				break
 
 		elif os.name == 'posix':
