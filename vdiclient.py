@@ -156,11 +156,17 @@ def setvmlayout(vms):
 	else:
 		layout.append([sg.Text(G.title, size =(30, 1), justification='c', font=["Helvetica", 18])])
 	layout.append([sg.Text('Please select a desktop instance to connect to', size =(40, 1), justification='c', font=["Helvetica", 10])])
+	layoutcolumn = []
 	for vm in vms:
 		if not vm["status"] == "unknown":
 			connkeyname = f'-CONN|{vm["vmid"]}-'
-			layout.append([sg.Text(vm['name'], font=["Helvetica", 14]), sg.Button('Connect', font=["Helvetica", 14], key=connkeyname)])
-			layout.append([sg.HorizontalSeparator()])
+			layoutcolumn.append([sg.Text(vm['name'], font=["Helvetica", 14]), sg.Button('Connect', font=["Helvetica", 14], key=connkeyname)])
+			layoutcolumn.append([sg.HorizontalSeparator()])
+	if len(vms) > 5: # We need a scrollbar
+		layout.append([sg.Column(layoutcolumn, scrollable = True, size = [450, None] )])
+	else:
+		for row in layoutcolumn:
+			layout.append(row)
 	layout.append([sg.Button('Logout', font=["Helvetica", 14])])
 	return layout
 
