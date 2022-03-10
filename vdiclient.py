@@ -27,6 +27,7 @@ class G:
 	kiosk = False
 	verify_ssl = True
 	icon = None
+	inidebug = False
 	theme = 'LightBlue'
 
 sg.theme(G.theme)
@@ -78,6 +79,8 @@ def loadconfig(config_location = None):
 				G.imagefile = config['General']['logo']
 		if 'kiosk' in config['General']:
 			G.kiosk = config['General'].getboolean('kiosk')
+		if 'inidebug' in config['General']:
+			G.inidebug = config['General'].getboolean('inidebug')
 	if not 'Authentication' in config:
 		win_popup_button(f'Unable to read supplied configuration:\nNo `Authentication` section defined!', 'OK')
 		return False
@@ -170,6 +173,18 @@ def setvmlayout(vms):
 	layout.append([sg.Button('Logout', font=["Helvetica", 14])])
 	return layout
 
+def iniwin(inistring):
+	inilayout = [
+			[sg.Multiline(default_text=inistring, size=(800, 600))]
+	]
+	iniwindow = sg.Window('INI debug', inilayout)
+	while True:
+		event, values = iniwindow.read()
+		if event == None:
+			break
+	iniwindow.close()
+	return True
+
 def vmaction(vmnode, vmid, vmtype):
 	status = False
 	if vmtype == 'qemu':
@@ -206,7 +221,6 @@ def vmaction(vmnode, vmid, vmtype):
 			if startpop:
 				startpop.close()
 			return status
-	connpop = win_popup(f'Connecting to {vmstatus["name"]}...')
 	if vmtype == 'qemu':
 		spiceconfig = G.proxmox.nodes(vmnode).qemu(str(vmid)).spiceproxy.post()
 	else: # Not sure this is even a thing, but here it is...
@@ -226,6 +240,9 @@ def vmaction(vmnode, vmid, vmtype):
 	confignode.write(inifile)
 	inifile.seek(0)
 	inistring = inifile.read()
+	if G.inidebug:
+		closed = iniwin(inistring)
+	connpop = win_popup(f'Connecting to {vmstatus["name"]}...')
 	pcmd = [G.vvcmd]
 	if G.kiosk:
 		pcmd.append('--kiosk')
