@@ -19,6 +19,9 @@ class G:
 	#########
 	title = 'VDI Login'
 	backend = 'pve'
+	user = ""
+	token_name = None
+	token_value = None
 	totp = False
 	imagefile = None
 	kiosk = False
@@ -85,6 +88,12 @@ def loadconfig(config_location = None):
 			G.totp = config['Authentication'].getboolean('auth_totp')
 		if 'tls_verify' in config['Authentication']:
 			G.verify_ssl = config['Authentication'].getboolean('tls_verify')
+		if 'user' in config['Authentication']:
+				G.user = config['Authentication']['user']
+		if 'token_name' in config['Authentication']:
+				G.token_name = config['Authentication']['token_name']
+		if 'token_value' in config['Authentication']:
+				G.token_value = config['Authentication']['token_value']
 	if not 'Hosts' in config:
 		win_popup_button(f'Unable to read supplied configuration:\nNo `Hosts` section defined!', 'OK')
 		return False
@@ -123,7 +132,7 @@ def setmainlayout():
 		layout.append([sg.Image(G.imagefile), sg.Text(G.title, size =(18, 1), justification='c', font=["Helvetica", 18])])
 	else:
 		layout.append([sg.Text(G.title, size =(30, 1), justification='c', font=["Helvetica", 18])])
-	layout.append([sg.Text("Username", size =(12, 1), font=["Helvetica", 12]), sg.InputText(key='-username-', font=["Helvetica", 12])])
+	layout.append([sg.Text("Username", size =(12, 1), font=["Helvetica", 12]), sg.InputText(default_text=G.user,key='-username-', font=["Helvetica", 12])])
 	layout.append([sg.Text("Password", size =(12, 1),font=["Helvetica", 12]), sg.InputText(key='-password-', password_char='*', font=["Helvetica", 12])])
 	
 	if G.totp:
@@ -148,9 +157,10 @@ def setvmlayout(vms):
 		layout.append([sg.Text(G.title, size =(30, 1), justification='c', font=["Helvetica", 18])])
 	layout.append([sg.Text('Please select a desktop instance to connect to', size =(40, 1), justification='c', font=["Helvetica", 10])])
 	for vm in vms:
-		connkeyname = f'-CONN|{vm["vmid"]}-'
-		layout.append([sg.Text(vm['name'], font=["Helvetica", 14]), sg.Button('Connect', font=["Helvetica", 14], key=connkeyname)])
-		layout.append([sg.HorizontalSeparator()])
+		if not vm["status"] == "unknown":
+			connkeyname = f'-CONN|{vm["vmid"]}-'
+			layout.append([sg.Text(vm['name'], font=["Helvetica", 14]), sg.Button('Connect', font=["Helvetica", 14], key=connkeyname)])
+			layout.append([sg.HorizontalSeparator()])
 	layout.append([sg.Button('Logout', font=["Helvetica", 14])])
 	return layout
 
@@ -210,7 +220,7 @@ def vmaction(vmnode, vmid, vmtype):
 	confignode.write(inifile)
 	inifile.seek(0)
 	inistring = inifile.read()
-	pcmd = [G.cmd]
+	pcmd = [G.vvcmd]
 	if G.kiosk:
 		pcmd.append('--kiosk')
 		pcmd.append('--kiosk-quit')
@@ -264,7 +274,9 @@ def pveauth(username, passwd, totp):
 		authenticated = False
 		if not connected and not authenticated:
 			try:
-				if totp:
+				if G.token_name and G.token_value:
+					G.proxmox = proxmoxer.ProxmoxAPI(host, user=f'{username}@{G.backend}',token_name=G.token_name,token_value=G.token_value, verify_ssl=G.verify_ssl, port=port)
+				elif totp:
 					G.proxmox = proxmoxer.ProxmoxAPI(host, user=f'{username}@{G.backend}', otp=totp, password=passwd, verify_ssl=G.verify_ssl, port=port)
 				else:
 					G.proxmox = proxmoxer.ProxmoxAPI(host, user=f'{username}@{G.backend}', password=passwd, verify_ssl=G.verify_ssl, port=port)
