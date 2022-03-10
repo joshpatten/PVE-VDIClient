@@ -210,7 +210,7 @@ def vmaction(vmnode, vmid, vmtype):
 	confignode.write(inifile)
 	inifile.seek(0)
 	inistring = inifile.read()
-	pcmd = [G.cmd]
+	pcmd = [G.vvcmd]
 	if G.kiosk:
 		pcmd.append('--kiosk')
 		pcmd.append('--kiosk-quit')
