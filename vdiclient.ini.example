@@ -17,6 +17,12 @@ auth_backend = pve
 auth_totp = false
 # If disabled, TLS certificate will not be checked
 tls_verify = false
+# User name
+#user = user
+# API Token Name
+#token_name = dvi
+#API Token Value
+#token_value = xxx-x-x-x-xxx
 
 [Hosts]
 # Hosts are entered as `IP/FQDN = Port`
