@@ -146,8 +146,7 @@ def setmainlayout():
 def getvms():
 	vms = []
 	for vm in G.proxmox.cluster.resources.get(type='vm'):
-		if vm['type'] == "qemu":
-			vms.append(vm)
+		vms.append(vm)
 	return vms
 
 def setvmlayout(vms):
