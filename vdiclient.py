@@ -341,7 +341,7 @@ def showvms():
 		window = sg.Window(G.title, layout, return_keyboard_events=True, resizable=False, no_titlebar=G.kiosk)
 	while True:
 		event, values = window.read()
-		if event == 'Logout':
+		if event in ('Logout', None):
 			window.close()
 			return False
 		if event.startswith('-CONN'):
