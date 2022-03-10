@@ -132,7 +132,7 @@ def setmainlayout():
 		layout.append([sg.Image(G.imagefile), sg.Text(G.title, size =(18, 1), justification='c', font=["Helvetica", 18])])
 	else:
 		layout.append([sg.Text(G.title, size =(30, 1), justification='c', font=["Helvetica", 18])])
-	layout.append([sg.Text("Username", size =(12, 1), font=["Helvetica", 12]), sg.InputText(key='-username-', font=["Helvetica", 12])])
+	layout.append([sg.Text("Username", size =(12, 1), font=["Helvetica", 12]), sg.InputText(default_text=G.user,key='-username-', font=["Helvetica", 12])])
 	layout.append([sg.Text("Password", size =(12, 1),font=["Helvetica", 12]), sg.InputText(key='-password-', password_char='*', font=["Helvetica", 12])])
 	
 	if G.totp:
