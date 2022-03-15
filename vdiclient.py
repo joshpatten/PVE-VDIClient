@@ -11,11 +11,13 @@ from time import sleep
 from io import StringIO
 
 
+
 class G:
 	hostpool = []
 	spiceproxy_conv = {}
 	proxmox = None
 	vvcmd = None
+	scaling = 1
 	#########
 	title = 'VDI Login'
 	backend = 'pve'
@@ -31,6 +33,24 @@ class G:
 	theme = 'LightBlue'
 
 sg.theme(G.theme)
+
+def get_dpi():
+	import ctypes
+	import win32api # pip install pywin32
+	shcore = ctypes.windll.shcore
+	monitors = win32api.EnumDisplayMonitors()
+	hresult = shcore.SetProcessDpiAwareness(2)
+	assert hresult == 0
+	dpiX = ctypes.c_uint()
+	dpiY = ctypes.c_uint()
+	for i, monitor in enumerate(monitors):
+		shcore.GetDpiForMonitor(
+			monitor[0].handle,
+			0,
+			ctypes.byref(dpiX),
+			ctypes.byref(dpiY)
+		)
+		return dpiX.value/96
 
 def loadconfig(config_location = None):
 	if config_location:
@@ -132,14 +152,14 @@ def win_popup_button(message, button):
 def setmainlayout():
 	layout = []
 	if G.imagefile:
-		layout.append([sg.Image(G.imagefile), sg.Text(G.title, size =(18, 1), justification='c', font=["Helvetica", 18])])
+		layout.append([sg.Image(G.imagefile), sg.Text(G.title, size =(18*G.scaling, 1*G.scaling), justification='c', font=["Helvetica", 18])])
 	else:
-		layout.append([sg.Text(G.title, size =(30, 1), justification='c', font=["Helvetica", 18])])
-	layout.append([sg.Text("Username", size =(12, 1), font=["Helvetica", 12]), sg.InputText(default_text=G.user,key='-username-', font=["Helvetica", 12])])
-	layout.append([sg.Text("Password", size =(12, 1),font=["Helvetica", 12]), sg.InputText(key='-password-', password_char='*', font=["Helvetica", 12])])
+		layout.append([sg.Text(G.title, size =(30*G.scaling, 1*G.scaling), justification='c', font=["Helvetica", 18])])
+	layout.append([sg.Text("Username", size =(12*G.scaling, 1*G.scaling), font=["Helvetica", 12]), sg.InputText(default_text=G.user,key='-username-', font=["Helvetica", 12])])
+	layout.append([sg.Text("Password", size =(12*G.scaling, 1*G.scaling),font=["Helvetica", 12]), sg.InputText(key='-password-', password_char='*', font=["Helvetica", 12])])
 	
 	if G.totp:
-		layout.append([sg.Text("OTP Key", size =(12, 1), font=["Helvetica", 12]), sg.InputText(key='-totp-', font=["Helvetica", 12])])
+		layout.append([sg.Text("OTP Key", size =(12*G.scaling, 1), font=["Helvetica", 12]), sg.InputText(key='-totp-', font=["Helvetica", 12])])
 	if G.kiosk:
 		layout.append([sg.Button("Log In", font=["Helvetica", 14])])
 	else:
@@ -155,10 +175,10 @@ def getvms():
 def setvmlayout(vms):
 	layout = []
 	if G.imagefile:
-		layout.append([sg.Image(G.imagefile), sg.Text(G.title, size =(18, 1), justification='c', font=["Helvetica", 18])])
+		layout.append([sg.Image(G.imagefile), sg.Text(G.title, size =(18*G.scaling, 1*G.scaling), justification='c', font=["Helvetica", 18])])
 	else:
-		layout.append([sg.Text(G.title, size =(30, 1), justification='c', font=["Helvetica", 18])])
-	layout.append([sg.Text('Please select a desktop instance to connect to', size =(40, 1), justification='c', font=["Helvetica", 10])])
+		layout.append([sg.Text(G.title, size =(30*G.scaling, 1*G.scaling), justification='c', font=["Helvetica", 18])])
+	layout.append([sg.Text('Please select a desktop instance to connect to', size =(40*G.scaling, 1*G.scaling), justification='c', font=["Helvetica", 10])])
 	layoutcolumn = []
 	for vm in vms:
 		if not vm["status"] == "unknown":
@@ -166,7 +186,7 @@ def setvmlayout(vms):
 			layoutcolumn.append([sg.Text(vm['name'], font=["Helvetica", 14]), sg.Button('Connect', font=["Helvetica", 14], key=connkeyname)])
 			layoutcolumn.append([sg.HorizontalSeparator()])
 	if len(vms) > 5: # We need a scrollbar
-		layout.append([sg.Column(layoutcolumn, scrollable = True, size = [450, None] )])
+		layout.append([sg.Column(layoutcolumn, scrollable = True, size = [450*G.scaling, None] )])
 	else:
 		for row in layoutcolumn:
 			layout.append(row)
@@ -175,7 +195,7 @@ def setvmlayout(vms):
 
 def iniwin(inistring):
 	inilayout = [
-			[sg.Multiline(default_text=inistring, size=(800, 600))]
+			[sg.Multiline(default_text=inistring, size=(800*G.scaling, 600*G.scaling))]
 	]
 	iniwindow = sg.Window('INI debug', inilayout)
 	while True:
@@ -310,7 +330,7 @@ def pveauth(username, passwd, totp):
 				err = e
 				connected = True
 				return connected, authenticated, err
-			except (requests.exceptions.ConnectTimeout, requests.exceptions.ConnectionError) as e:
+			except (requests.exceptions.ReadTimeout, requests.exceptions.ConnectTimeout, requests.exceptions.ConnectionError) as e:
 				err = e
 				connected = False
 	return connected, authenticated, err
@@ -374,6 +394,10 @@ def showvms():
 	return True
 
 def main():
+	if os.name == 'nt':
+		G.scaling = get_dpi()
+	else:
+		G.scaling = 1.0 #TODO FIXME: Figure out scaling on Linux
 	config_location = None
 	if len(sys.argv) > 1:
 		if sys.argv[1] == '--list_themes':
