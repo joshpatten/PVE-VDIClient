@@ -32,8 +32,6 @@ class G:
 	inidebug = False
 	theme = 'LightBlue'
 
-sg.theme(G.theme)
-
 def get_dpi():
 	import ctypes
 	import win32api # pip install pywin32
@@ -412,6 +410,7 @@ def main():
 	setcmd()
 	if not loadconfig(config_location):
 		return False
+	sg.theme(G.theme)
 	loggedin = False
 	while True:
 		if not loggedin:
