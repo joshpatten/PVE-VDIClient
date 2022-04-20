@@ -1,6 +1,9 @@
 #!/usr/bin/python3
 import proxmoxer # pip install proxmoxer
-import PySimpleGUIQt as sg # pip install PySimpleGUIQt
+try:
+	import PySimpleGUIQt as sg # pip install PySimpleGUIQt
+except ImportError:
+	import PySimpleGUI as sg # pip install PySimpleGUI
 import requests
 from configparser import ConfigParser
 import random
