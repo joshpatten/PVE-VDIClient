@@ -2,8 +2,10 @@
 import proxmoxer # pip install proxmoxer
 try:
 	import PySimpleGUIQt as sg # pip install PySimpleGUIQt
+	gui = 'QT'
 except ImportError:
 	import PySimpleGUI as sg # pip install PySimpleGUI
+	gui = 'TK'
 import requests
 from configparser import ConfigParser
 import random
@@ -135,6 +137,7 @@ def loadconfig(config_location = None):
 def win_popup(message):
 	layout = [[sg.Text(message)]]
 	window = sg.Window('Message', layout, no_titlebar=True, keep_on_top=True, finalize=True)
+	window.bring_to_front()
 	return window
 	
 def win_popup_button(message, button):
@@ -395,10 +398,13 @@ def showvms():
 	return True
 
 def main():
-	if os.name == 'nt':
+	if os.name == 'nt' and gui == 'QT':
 		G.scaling = get_dpi()
 	else:
-		G.scaling = 1.0 #TODO FIXME: Figure out scaling on Linux
+		if gui == 'QT':
+			G.scaling = 1.0 #TODO FIXME: Figure out scaling on Linux
+		else:
+			G.scaling = 1 # TKinter requires integers
 	config_location = None
 	if len(sys.argv) > 1:
 		if sys.argv[1] == '--list_themes':
