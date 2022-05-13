@@ -253,7 +253,7 @@ def vmaction(vmnode, vmid, vmtype):
 	confignode['virt-viewer'] = {}
 	for key,value in spiceconfig.items():
 		if key == 'proxy':
-			val = value[7:]
+			val = value[7:].lower()
 			if val in G.spiceproxy_conv:
 				confignode['virt-viewer'][key] = f'http://{G.spiceproxy_conv[val]}'
 			else:
