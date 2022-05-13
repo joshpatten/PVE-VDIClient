@@ -34,4 +34,6 @@ pve1.example.com = 8006
 [SpiceProxyRedirect]
 # The Spice Proxy provided by the Proxmox API may need to have it's host/port rewritten
 # These rewrite rules are written `IP:port = IP:port`
+# 1. Use the inidebug and read the current proxy=pve1.example.com:3128
+# 2. Add your proxmox ip to the right side e.g. 123.123.123.123:6000
 pve1.example.com:3128 = 123.123.123.123:6000
