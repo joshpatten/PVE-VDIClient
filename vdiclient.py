@@ -32,6 +32,7 @@ class G:
 	totp = False
 	imagefile = None
 	kiosk = False
+	fullscreen = True
 	verify_ssl = True
 	icon = None
 	inidebug = False
@@ -107,6 +108,8 @@ def loadconfig(config_location = None):
 				G.imagefile = config['General']['logo']
 		if 'kiosk' in config['General']:
 			G.kiosk = config['General'].getboolean('kiosk')
+		if 'fullscreen' in config['General']:
+			G.fullscreen = config['General'].getboolean('fullscreen')
 		if 'inidebug' in config['General']:
 			G.inidebug = config['General'].getboolean('inidebug')
 	if not 'Authentication' in config:
@@ -277,7 +280,7 @@ def vmaction(vmnode, vmid, vmtype):
 		pcmd.append('--kiosk')
 		pcmd.append('--kiosk-quit')
 		pcmd.append('on-disconnect')
-	else:
+	elif G.fullscreen:
 		pcmd.append('--full-screen')
 	pcmd.append('-') #We need it to listen on stdin
 	process = subprocess.Popen(pcmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE)

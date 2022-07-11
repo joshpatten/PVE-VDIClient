@@ -9,8 +9,11 @@ icon = vdiicon.ico
 logo = vdiclient.png
 # Enable Kiosk mode, which does not allow the user to close anything
 kiosk = False
+# Enable/Disable Fullscreen mode (not applicable in Kiosk mode)
+fullscreen = True
 # Enable displaying SPICE ini file before opening virt-viewer
 inidebug = False
+
 
 [Authentication]
 # This is the authentication backend that will be used to authenticate
