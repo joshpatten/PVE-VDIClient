@@ -69,6 +69,8 @@ def loadconfig(config_location = None):
 			if not os.path.exists(config_location):
 				config_location = f'{os.getenv("PROGRAMFILES")}\\VDIClient\\vdiclient.ini'
 			if not os.path.exists(config_location):
+				config_location = f'{os.getenv("PROGRAMFILES(x86)")}\\VDIClient\\vdiclient.ini'
+			if not os.path.exists(config_location):
 				win_popup_button(f'Unable to read supplied configuration from any location!', 'OK')
 				return False
 		elif os.name == 'posix': #Linux
