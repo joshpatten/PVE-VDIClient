@@ -237,7 +237,11 @@ def vmaction(vmnode, vmid, vmtype):
 		running = False
 		i = 0
 		while running == False and i < 30:
-			jobstatus = G.proxmox.nodes(vmnode).tasks(jobid).status.get()
+			try:
+				jobstatus = G.proxmox.nodes(vmnode).tasks(jobid).status.get()
+			except Exception:
+				# We ran into a query issue here, going to skip this round and try again
+				jobstatus = {}
 			if 'exitstatus' in jobstatus:
 				startpop.close()
 				startpop = None
