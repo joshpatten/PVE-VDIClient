@@ -22,7 +22,7 @@ auth_backend = pve
 auth_totp = false
 # If disabled, TLS certificate will not be checked
 tls_verify = false
-# User name
+# User name (if using token)
 #user = user
 # API Token Name
 #token_name = dvi

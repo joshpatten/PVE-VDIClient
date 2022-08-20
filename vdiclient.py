@@ -185,9 +185,13 @@ def setmainlayout():
 
 def getvms():
 	vms = []
-	for vm in G.proxmox.cluster.resources.get(type='vm'):
-		vms.append(vm)
-	return vms
+	try:
+		for vm in G.proxmox.cluster.resources.get(type='vm'):
+			vms.append(vm)
+		return vms
+	except proxmoxer.core.ResourceException as e:
+		win_popup_button(f"Unable to display list of VMs:\n {e!r}", 'OK')
+		return False
 
 def setvmlayout(vms):
 	layout = []
@@ -328,7 +332,7 @@ def setcmd():
 			win_popup_button('Installation of virt-viewer missing, please install using `apt install virt-viewer`', 'OK')
 		sys.exit()
 
-def pveauth(username, passwd, totp):
+def pveauth(username, passwd=None, totp=None):
 	random.shuffle(G.hostpool)
 	err = None
 	for hostinfo in G.hostpool:
@@ -361,37 +365,52 @@ def pveauth(username, passwd, totp):
 
 def loginwindow():
 	layout = setmainlayout()
-	if G.icon:
-		window = sg.Window(G.title, layout, return_keyboard_events=True, resizable=False, no_titlebar=G.kiosk, icon=G.icon)
-	else:
-		window = sg.Window(G.title, layout, return_keyboard_events=True, resizable=False, no_titlebar=G.kiosk)
-	while True:
-		event, values = window.read()
-		if event == 'Cancel' or event == sg.WIN_CLOSED:
-			window.close()
+	if G.user and G.token_name and G.token_value: # We need to skip the login
+		popwin = win_popup("Please wait, authenticating...")
+		connected, authenticated, error = pveauth(G.user)
+		popwin.close()
+		if not connected:
+			win_popup_button(f'Unable to connect to any VDI server, are you connected to the Internet?\nError Info: {error}', 'OK')
 			return False
+		elif connected and not authenticated:
+			win_popup_button('Invalid username and/or password, please try again!', 'OK')
+			return False
+		elif connected and authenticated:
+			return True
+	else:
+		if G.icon:
+			window = sg.Window(G.title, layout, return_keyboard_events=True, resizable=False, no_titlebar=G.kiosk, icon=G.icon)
 		else:
-			if event in ('Log In', '\r', 'special 16777220', 'special 16777221'):
-				popwin = win_popup("Please wait, authenticating...")
-				user = values['-username-']
-				passwd = values['-password-']
-				totp = None
-				if '-totp-' in values:
-					if values['-totp-'] not in (None, ''):
-						totp = values['-totp-']
-				connected, authenticated, error = pveauth(user, passwd, totp)
-				popwin.close()
-				if not connected:
-					win_popup_button(f'Unable to connect to any VDI server, are you connected to the Internet?\nError Info: {error}', 'OK')
-				elif connected and not authenticated:
-					win_popup_button('Invalid username and/or password, please try again!', 'OK')
-				elif connected and authenticated:
-					window.close()
-					return True
-				#break
+			window = sg.Window(G.title, layout, return_keyboard_events=True, resizable=False, no_titlebar=G.kiosk)
+		while True:
+			event, values = window.read()
+			if event == 'Cancel' or event == sg.WIN_CLOSED:
+				window.close()
+				return False
+			else:
+				if event in ('Log In', '\r', 'special 16777220', 'special 16777221'):
+					popwin = win_popup("Please wait, authenticating...")
+					user = values['-username-']
+					passwd = values['-password-']
+					totp = None
+					if '-totp-' in values:
+						if values['-totp-'] not in (None, ''):
+							totp = values['-totp-']
+					connected, authenticated, error = pveauth(user, passwd=passwd, totp=totp)
+					popwin.close()
+					if not connected:
+						win_popup_button(f'Unable to connect to any VDI server, are you connected to the Internet?\nError Info: {error}', 'OK')
+					elif connected and not authenticated:
+						win_popup_button('Invalid username and/or password, please try again!', 'OK')
+					elif connected and authenticated:
+						window.close()
+						return True
+					#break
 
 def showvms():
 	vms = getvms()
+	if vms == False:
+		return False
 	if len(vms) < 1:
 		win_popup_button('No desktop instances found, please consult with your system administrator', 'OK')
 		return False
@@ -445,12 +464,16 @@ def main():
 		if not loggedin:
 			loggedin = loginwindow()
 			if not loggedin:
+				if G.user and G.token_name and G.token_value: # This means if we don't exit we'll be in an infinite loop
+					return 1
 				break
 			else:
 				vmstat = showvms()
 				if not vmstat:
 					G.proxmox = None
 					loggedin = False
+					if G.user and G.token_name and G.token_value: # This means if we don't exit we'll be in an infinite loop
+						return 0
 				else:
 					return
 sys.exit(main())
