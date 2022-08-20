@@ -36,6 +36,7 @@ class G:
 	verify_ssl = True
 	icon = None
 	inidebug = False
+	addl_params = None
 	theme = 'LightBlue'
 
 def get_dpi():
@@ -140,6 +141,10 @@ def loadconfig(config_location = None):
 	if 'SpiceProxyRedirect' in config:
 		for key in config['SpiceProxyRedirect']:
 			G.spiceproxy_conv[key] = config['SpiceProxyRedirect'][key]
+	if 'AdditionalParameters' in config:
+		G.addl_params = {}
+		for key in config['AdditionalParameters']:
+			G.addl_params[key] = config['AdditionalParameters'][key]
 	return True
 
 def win_popup(message):
@@ -263,7 +268,7 @@ def vmaction(vmnode, vmid, vmtype):
 		spiceconfig = G.proxmox.nodes(vmnode).lxc(str(vmid)).spiceproxy.post()
 	confignode = ConfigParser()
 	confignode['virt-viewer'] = {}
-	for key,value in spiceconfig.items():
+	for key, value in spiceconfig.items():
 		if key == 'proxy':
 			val = value[7:].lower()
 			if val in G.spiceproxy_conv:
@@ -271,6 +276,9 @@ def vmaction(vmnode, vmid, vmtype):
 			else:
 				confignode['virt-viewer'][key] = f'{value}'
 		else:
+			confignode['virt-viewer'][key] = f'{value}'
+	if G.addl_params:
+		for key, value in G.addl_params.items():
 			confignode['virt-viewer'][key] = f'{value}'
 	inifile = StringIO('')
 	confignode.write(inifile)

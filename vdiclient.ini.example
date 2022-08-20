@@ -40,3 +40,12 @@ pve1.example.com = 8006
 # 1. Use the inidebug and read the current proxy=pve1.example.com:3128
 # 2. Add your proxmox ip to the right side e.g. 123.123.123.123:6000
 pve1.example.com:3128 = 123.123.123.123:6000
+
+#[AdditionalParameters]
+# If you wish to define additional parameters to pass to virt-viewer you may define them here
+# More parameter definitions here: https://www.mankier.com/1/remote-viewer
+# Some Examples:
+# Enable USB passthrough
+#enable-usbredir = true
+# Enable auto USB device sharing
+#enable-usb-autoshare = true
