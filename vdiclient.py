@@ -187,6 +187,8 @@ def getvms():
 	vms = []
 	try:
 		for vm in G.proxmox.cluster.resources.get(type='vm'):
+			if vm['template']:
+				continue
 			vms.append(vm)
 		return vms
 	except proxmoxer.core.ResourceException as e:
