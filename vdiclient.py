@@ -38,6 +38,7 @@ class G:
 	inidebug = False
 	addl_params = None
 	theme = 'LightBlue'
+	guest_type = 'both'
 
 def get_dpi():
 	import ctypes
@@ -113,6 +114,8 @@ def loadconfig(config_location = None):
 			G.fullscreen = config['General'].getboolean('fullscreen')
 		if 'inidebug' in config['General']:
 			G.inidebug = config['General'].getboolean('inidebug')
+		if 'guest_type' in config['General']:
+			G.guest_type = config['General']['guest_type']
 	if not 'Authentication' in config:
 		win_popup_button(f'Unable to read supplied configuration:\nNo `Authentication` section defined!', 'OK')
 		return False
@@ -189,7 +192,10 @@ def getvms():
 		for vm in G.proxmox.cluster.resources.get(type='vm'):
 			if vm['template']:
 				continue
-			vms.append(vm)
+			if G.guest_type == 'both':
+				vms.append(vm)
+			elif G.guest_type == vm['type']:
+				vms.append(vm)
 		return vms
 	except proxmoxer.core.ResourceException as e:
 		win_popup_button(f"Unable to display list of VMs:\n {e!r}", 'OK')
