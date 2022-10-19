@@ -304,7 +304,8 @@ class PackageGenerator:
 			})
 
 	def path_to_id(self, pathname):
-			return pathname.replace('\\', '_').replace('/', '_').replace('#', '_').replace('-', '_')																								   
+			return pathname.replace('\\', '_').replace('/', '_').replace('#', '_').replace('-', '_').replace("+", "__")
+	
 	def create_xml(self, nodes, current_dir, parent_xml_node, staging_dir):
 		cur_node = nodes[current_dir]
 		if cur_node.files:
@@ -327,7 +328,7 @@ class PackageGenerator:
 				})
 			self.component_num += 1
 			for f in cur_node.files:
-				file_id = self.path_to_id(os.path.join(current_dir, f)).replace("+", "__")
+				file_id = self.path_to_id(os.path.join(current_dir, f))
 				ET.SubElement(comp_xml_node, 'File', {
 					'Id': file_id,
 					'Name': f,
@@ -335,7 +336,7 @@ class PackageGenerator:
 				})
 
 		for dirname in cur_node.dirs:
-			dir_id = os.path.join(current_dir, dirname).replace('\\', '_').replace('/', '_')
+			dir_id = self.path_to_id(os.path.join(current_dir, dirname))
 			dir_node = ET.SubElement(parent_xml_node, 'Directory', {
 				'Id': dir_id,
 				'Name': dirname,
