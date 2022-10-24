@@ -190,7 +190,7 @@ def getvms():
 	vms = []
 	try:
 		for vm in G.proxmox.cluster.resources.get(type='vm'):
-			if vm['template']:
+			if 'template' in vm and vm['template']:
 				continue
 			if G.guest_type == 'both':
 				vms.append(vm)
