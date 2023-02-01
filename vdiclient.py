@@ -1,11 +1,7 @@
 #!/usr/bin/python3
 import proxmoxer # pip install proxmoxer
-try:
-	import PySimpleGUIQt as sg # pip install PySimpleGUIQt
-	gui = 'QT'
-except ImportError:
-	import PySimpleGUI as sg # pip install PySimpleGUI
-	gui = 'TK'
+import PySimpleGUI as sg # pip install PySimpleGUI
+gui = 'TK'
 import requests
 from configparser import ConfigParser
 import random
@@ -154,6 +150,7 @@ def win_popup(message):
 	layout = [[sg.Text(message)]]
 	window = sg.Window('Message', layout, no_titlebar=True, keep_on_top=True, finalize=True)
 	window.bring_to_front()
+	_, _ = window.read(timeout=1) # Fixes a black screen bug
 	return window
 	
 def win_popup_button(message, button):
@@ -484,4 +481,6 @@ def main():
 						return 0
 				else:
 					return
-sys.exit(main())
+
+if __name__ == '__main__':
+	sys.exit(main())
