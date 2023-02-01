@@ -5,6 +5,7 @@
 	"manufacturer" : "Josh Patten",
 	"name" : "VDI Client",
 	"name_base" : "vdiclient",
+	"arch": 64,
 	"comments" : "This is the Proxmox VDI client. This client interfaces with Proxmox requires that virt-viewer be installed.",
 	"installdir" : "VDIClient",
 	"installscope" : "perMachine",
