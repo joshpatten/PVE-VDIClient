@@ -7,6 +7,7 @@ from datetime import datetime
 from configparser import ConfigParser
 import random
 import sys
+import copy
 import os
 import subprocess
 from time import sleep
@@ -130,10 +131,12 @@ def loadconfig(config_location = None):
 	return True
 
 def win_popup(message):
-	layout = [[sg.Text(message)]]
-	window = sg.Window('Message', layout, no_titlebar=True, keep_on_top=True, finalize=True)
+	layout = [
+		[sg.Text(message)]
+	]
+	window = sg.Window('Message', layout, return_keyboard_events=True, no_titlebar=True, keep_on_top=True, finalize=True)
 	window.bring_to_front()
-	_, _ = window.read(timeout=1) # Fixes a black screen bug
+	_, _ = window.read(timeout=10) # Fixes a black screen bug
 	return window
 	
 def win_popup_button(message, button):
@@ -166,16 +169,23 @@ def setmainlayout():
 		layout.append([sg.Button("Log In", font=["Helvetica", 14]), sg.Button("Cancel", font=["Helvetica", 14])])
 	return layout
 
-def getvms():
+def getvms(listonly = False):
 	vms = []
 	try:
 		for vm in G.proxmox.cluster.resources.get(type='vm'):
 			if 'template' in vm and vm['template']:
 				continue
-			if G.guest_type == 'both':
-				vms.append(vm)
-			elif G.guest_type == vm['type']:
-				vms.append(vm)
+			if G.guest_type == 'both' or G.guest_type == vm['type']:
+				if listonly:
+					vms.append(
+						{
+							'vmid': vm['vmid'],
+							'name': vm['name'],
+							'node': vm['node']
+						}
+					)
+				else:
+					vms.append(vm)
 		return vms
 	except proxmoxer.core.ResourceException as e:
 		win_popup_button(f"Unable to display list of VMs:\n {e!r}", 'OK')
@@ -397,13 +407,14 @@ def loginwindow():
 
 def showvms():
 	vms = getvms()
-	newvms = getvms()
-	if newvms == False:
+	vmlist = getvms(listonly=True)
+	newvmlist = vmlist.copy()
+	if vms == False:
 		return False
-	if len(newvms) < 1:
+	if len(vms) < 1:
 		win_popup_button('No desktop instances found, please consult with your system administrator', 'OK')
 		return False
-	layout = setvmlayout(newvms)
+	layout = setvmlayout(vms)
 
 	if G.icon:
 		window = sg.Window(G.title, layout, return_keyboard_events=True, finalize=True, resizable=False, no_titlebar=G.kiosk, icon=G.icon)
@@ -413,10 +424,10 @@ def showvms():
 	while True:
 		if (datetime.now() - timer).total_seconds() > 10:
 			timer = datetime.now()
-			newvms = getvms()
-			if vms != newvms:
-				vms = getvms()
-				layout = setvmlayout(newvms)
+			newvmlist = getvms(listonly = True)
+			if vmlist != newvmlist:
+				vmlist = newvmlist.copy()
+				layout = setvmlayout(getvms())
 				window.close()
 				if G.icon:
 					window = sg.Window(G.title, layout, return_keyboard_events=True, finalize=True, resizable=False, no_titlebar=G.kiosk, icon=G.icon)
