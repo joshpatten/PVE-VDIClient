@@ -3,6 +3,7 @@ import proxmoxer # pip install proxmoxer
 import PySimpleGUI as sg # pip install PySimpleGUI
 gui = 'TK'
 import requests
+from datetime import datetime
 from configparser import ConfigParser
 import random
 import sys
@@ -35,24 +36,6 @@ class G:
 	addl_params = None
 	theme = 'LightBlue'
 	guest_type = 'both'
-
-def get_dpi():
-	import ctypes
-	import win32api # pip install pywin32
-	shcore = ctypes.windll.shcore
-	monitors = win32api.EnumDisplayMonitors()
-	hresult = shcore.SetProcessDpiAwareness(2)
-	assert hresult == 0
-	dpiX = ctypes.c_uint()
-	dpiY = ctypes.c_uint()
-	for i, monitor in enumerate(monitors):
-		shcore.GetDpiForMonitor(
-			monitor[0].handle,
-			0,
-			ctypes.byref(dpiX),
-			ctypes.byref(dpiY)
-		)
-		return dpiX.value/96
 
 def loadconfig(config_location = None):
 	if config_location:
@@ -209,7 +192,7 @@ def setvmlayout(vms):
 	for vm in vms:
 		if not vm["status"] == "unknown":
 			connkeyname = f'-CONN|{vm["vmid"]}-'
-			layoutcolumn.append([sg.Text(vm['name'], font=["Helvetica", 14]), sg.Button('Connect', font=["Helvetica", 14], key=connkeyname)])
+			layoutcolumn.append([sg.Text(vm['name'], font=["Helvetica", 14], size=(22*G.scaling, 1*G.scaling)), sg.Button('Connect', font=["Helvetica", 14], key=connkeyname)])
 			layoutcolumn.append([sg.HorizontalSeparator()])
 	if len(vms) > 5: # We need a scrollbar
 		layout.append([sg.Column(layoutcolumn, scrollable = True, size = [450*G.scaling, None] )])
@@ -414,18 +397,33 @@ def loginwindow():
 
 def showvms():
 	vms = getvms()
-	if vms == False:
+	newvms = getvms()
+	if newvms == False:
 		return False
-	if len(vms) < 1:
+	if len(newvms) < 1:
 		win_popup_button('No desktop instances found, please consult with your system administrator', 'OK')
 		return False
-	layout = setvmlayout(vms)
+	layout = setvmlayout(newvms)
+
 	if G.icon:
-		window = sg.Window(G.title, layout, return_keyboard_events=True, resizable=False, no_titlebar=G.kiosk, icon=G.icon)
+		window = sg.Window(G.title, layout, return_keyboard_events=True, finalize=True, resizable=False, no_titlebar=G.kiosk, icon=G.icon)
 	else:
-		window = sg.Window(G.title, layout, return_keyboard_events=True, resizable=False, no_titlebar=G.kiosk)
+		window = sg.Window(G.title, layout, return_keyboard_events=True, finalize=True, resizable=False, no_titlebar=G.kiosk)
+	timer = datetime.now()
 	while True:
-		event, values = window.read()
+		if (datetime.now() - timer).total_seconds() > 10:
+			timer = datetime.now()
+			newvms = getvms()
+			if vms != newvms:
+				vms = getvms()
+				layout = setvmlayout(newvms)
+				window.close()
+				if G.icon:
+					window = sg.Window(G.title, layout, return_keyboard_events=True, finalize=True, resizable=False, no_titlebar=G.kiosk, icon=G.icon)
+				else:
+					window = sg.Window(G.title, layout, return_keyboard_events=True,finalize=True, resizable=False, no_titlebar=G.kiosk)
+				window.bring_to_front()
+		event, values = window.read(timeout = 1000)
 		if event in ('Logout', None):
 			window.close()
 			return False
@@ -442,13 +440,7 @@ def showvms():
 	return True
 
 def main():
-	if os.name == 'nt' and gui == 'QT':
-		G.scaling = get_dpi()
-	else:
-		if gui == 'QT':
-			G.scaling = 1.0 #TODO FIXME: Figure out scaling on Linux
-		else:
-			G.scaling = 1 # TKinter requires integers
+	G.scaling = 1 # TKinter requires integers
 	config_location = None
 	if len(sys.argv) > 1:
 		if sys.argv[1] == '--list_themes':
