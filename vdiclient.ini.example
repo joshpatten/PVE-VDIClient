@@ -1,7 +1,7 @@
 [General]
 # This is the title that is diplayed to the user
 title = VDI Login
-# This is the PySimpleGui Theme that is used. Run pvevdi.py with flag `--list_themes` for a list of themes
+# This is the PySimpleGui Theme that is used. Run vdiclient.py with flag `--list_themes` for a list of themes
 theme = LightBlue
 # Program Icon
 icon = vdiicon.ico
