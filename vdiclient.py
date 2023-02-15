@@ -172,7 +172,14 @@ def setmainlayout():
 def getvms(listonly = False):
 	vms = []
 	try:
+		nodes = []
+		for node in G.proxmox.cluster.resources.get(type='node'):
+			if node['status'] == 'online':
+				nodes.append(node['node'])
+
 		for vm in G.proxmox.cluster.resources.get(type='vm'):
+			if vm['node'] not in nodes:
+				continue
 			if 'template' in vm and vm['template']:
 				continue
 			if G.guest_type == 'both' or G.guest_type == vm['type']:
