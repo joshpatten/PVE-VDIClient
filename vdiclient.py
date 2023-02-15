@@ -164,9 +164,9 @@ def setmainlayout():
 	if G.totp:
 		layout.append([sg.Text("OTP Key", size =(12*G.scaling, 1), font=["Helvetica", 12]), sg.InputText(key='-totp-', font=["Helvetica", 12])])
 	if G.kiosk:
-		layout.append([sg.Button("Log In", font=["Helvetica", 14])])
+		layout.append([sg.Button("Log In", font=["Helvetica", 14], bind_return_key=True)])
 	else:
-		layout.append([sg.Button("Log In", font=["Helvetica", 14]), sg.Button("Cancel", font=["Helvetica", 14])])
+		layout.append([sg.Button("Log In", font=["Helvetica", 14], bind_return_key=True), sg.Button("Cancel", font=["Helvetica", 14])])
 	return layout
 
 def getvms(listonly = False):
