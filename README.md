@@ -24,7 +24,7 @@ you will need to download the latest 3.10 python release, and run the following 
 
 Run the following commands on a Debian/Ubuntu Linux system to install the appropriate prerequisites
 
-    apt install python3-pip virt-viewer git
+    apt install python3-pip python3-tk virt-viewer git
     git clone https://github.com/joshpatten/PVE-VDIClient.git
     cd ./PVE-VDIClient/
     chmod +x requirements.sh
