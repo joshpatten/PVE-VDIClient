@@ -271,10 +271,14 @@ def vmaction(vmnode, vmid, vmtype):
 			if startpop:
 				startpop.close()
 			return status
-	if vmtype == 'qemu':
-		spiceconfig = G.proxmox.nodes(vmnode).qemu(str(vmid)).spiceproxy.post()
-	else: # Not sure this is even a thing, but here it is...
-		spiceconfig = G.proxmox.nodes(vmnode).lxc(str(vmid)).spiceproxy.post()
+	try:
+		if vmtype == 'qemu':
+			spiceconfig = G.proxmox.nodes(vmnode).qemu(str(vmid)).spiceproxy.post()
+		else: # Not sure this is even a thing, but here it is...
+			spiceconfig = G.proxmox.nodes(vmnode).lxc(str(vmid)).spiceproxy.post()
+	except proxmoxer.core.ResourceException as e:
+		win_popup_button(f"Unable to connect to VM {vmid}:\n{e!r}\nIs SPICE display configured for your VM?", 'OK')
+		return False
 	confignode = ConfigParser()
 	confignode['virt-viewer'] = {}
 	for key, value in spiceconfig.items():
