@@ -17,6 +17,9 @@ inidebug = False
 guest_type = both
 # Show VM option for resetting VM
 #show_reset = True
+# Set Window Dimensions. Only use if window isn't sizing properly
+#window_width = 800
+#window_height = 600
 
 [Authentication]
 # This is the authentication backend that will be used to authenticate

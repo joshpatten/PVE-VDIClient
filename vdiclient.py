@@ -39,6 +39,8 @@ class G:
 	addl_params = None
 	theme = 'LightBlue'
 	guest_type = 'both'
+	width = None
+	height = None
 
 def loadconfig(config_location = None):
 	if config_location:
@@ -100,6 +102,10 @@ def loadconfig(config_location = None):
 			G.guest_type = config['General']['guest_type']
 		if 'show_reset' in config['General']:
 			G.show_reset = config['General'].getboolean('show_reset')
+		if 'window_width' in config['General']:
+			G.width = config['General'].getint('window_width')
+		if 'window_height' in config['General']:
+			G.height = config['General'].getint('window_height')
 	if not 'Authentication' in config:
 		win_popup_button(f'Unable to read supplied configuration:\nNo `Authentication` section defined!', 'OK')
 		return False
@@ -507,9 +513,9 @@ def showvms():
 	layout = setvmlayout(vms)
 
 	if G.icon:
-		window = sg.Window(G.title, layout, return_keyboard_events=True, finalize=True, resizable=False, no_titlebar=G.kiosk, icon=G.icon)
+		window = sg.Window(G.title, layout, return_keyboard_events=True, finalize=True, resizable=False, no_titlebar=G.kiosk, size=(G.width, G.height), icon=G.icon)
 	else:
-		window = sg.Window(G.title, layout, return_keyboard_events=True, finalize=True, resizable=False, no_titlebar=G.kiosk)
+		window = sg.Window(G.title, layout, return_keyboard_events=True, finalize=True, resizable=False, size=(G.width, G.height), no_titlebar=G.kiosk)
 	timer = datetime.now()
 	while True:
 		if (datetime.now() - timer).total_seconds() > 5:
@@ -521,9 +527,9 @@ def showvms():
 				layout = setvmlayout(vms)
 				window.close()
 				if G.icon:
-					window = sg.Window(G.title, layout, return_keyboard_events=True, finalize=True, resizable=False, no_titlebar=G.kiosk, icon=G.icon)
+					window = sg.Window(G.title, layout, return_keyboard_events=True, finalize=True, resizable=False, no_titlebar=G.kiosk, size=(G.width, G.height), icon=G.icon)
 				else:
-					window = sg.Window(G.title, layout, return_keyboard_events=True,finalize=True, resizable=False, no_titlebar=G.kiosk)
+					window = sg.Window(G.title, layout, return_keyboard_events=True,finalize=True, resizable=False, no_titlebar=G.kiosk, size=(G.width, G.height))
 				window.bring_to_front()
 			else: # Refresh existing vm status
 				newvms = getvms()
