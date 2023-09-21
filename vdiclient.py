@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!env python3
 import proxmoxer # pip install proxmoxer
 import PySimpleGUI as sg # pip install PySimpleGUI
 gui = 'TK'
@@ -34,9 +34,13 @@ class G:
 	verify_ssl = True
 	icon = None
 	inidebug = False
+	show_reset = False
+	show_hibernate = False
 	addl_params = None
 	theme = 'LightBlue'
 	guest_type = 'both'
+	width = None
+	height = None
 
 def loadconfig(config_location = None):
 	if config_location:
@@ -96,6 +100,12 @@ def loadconfig(config_location = None):
 			G.inidebug = config['General'].getboolean('inidebug')
 		if 'guest_type' in config['General']:
 			G.guest_type = config['General']['guest_type']
+		if 'show_reset' in config['General']:
+			G.show_reset = config['General'].getboolean('show_reset')
+		if 'window_width' in config['General']:
+			G.width = config['General'].getint('window_width')
+		if 'window_height' in config['General']:
+			G.height = config['General'].getint('window_height')
 	if not 'Authentication' in config:
 		win_popup_button(f'Unable to read supplied configuration:\nNo `Authentication` section defined!', 'OK')
 		return False
@@ -132,11 +142,14 @@ def loadconfig(config_location = None):
 
 def win_popup(message):
 	layout = [
-		[sg.Text(message)]
+		[sg.Text(message, key='-TXT-')]
 	]
-	window = sg.Window('Message', layout, return_keyboard_events=True, no_titlebar=True, keep_on_top=True, finalize=True)
+	window = sg.Window('Message', layout, return_keyboard_events=True, no_titlebar=True, keep_on_top=True, finalize=True, )
 	window.bring_to_front()
 	_, _ = window.read(timeout=10) # Fixes a black screen bug
+	window['-TXT-'].update(message)
+	sleep(.15)
+	window['-TXT-'].update(message)
 	return window
 	
 def win_popup_button(message, button):
@@ -197,6 +210,9 @@ def getvms(listonly = False):
 	except proxmoxer.core.ResourceException as e:
 		win_popup_button(f"Unable to display list of VMs:\n {e!r}", 'OK')
 		return False
+	except requests.exceptions.ConnectionError as e:
+		print(f"Encountered error when querying proxmox: {e!r}")
+		return False
 
 def setvmlayout(vms):
 	layout = []
@@ -208,8 +224,35 @@ def setvmlayout(vms):
 	layoutcolumn = []
 	for vm in vms:
 		if not vm["status"] == "unknown":
+			vmkeyname = f'-VM|{vm["vmid"]}-'
 			connkeyname = f'-CONN|{vm["vmid"]}-'
-			layoutcolumn.append([sg.Text(vm['name'], font=["Helvetica", 14], size=(22*G.scaling, 1*G.scaling)), sg.Button('Connect', font=["Helvetica", 14], key=connkeyname)])
+			resetkeyname = f'-RESET|{vm["vmid"]}-'
+			hiberkeyname = f'-HIBER|{vm["vmid"]}-'
+			state = 'stopped'
+			connbutton = sg.Button('Connect', font=["Helvetica", 14], key=connkeyname)
+			if vm['status'] == 'running':
+				if 'lock' in vm:
+					state = vm['lock']
+					if state in ('suspending', 'suspended'):
+						if state == 'suspended':
+							state = 'starting'
+						connbutton = sg.Button('Connect', font=["Helvetica", 14], key=connkeyname, disabled=True)
+				else:
+					state = vm['status']
+			tmplayout =	[
+				sg.Text(vm['name'], font=["Helvetica", 14], size=(22*G.scaling, 1*G.scaling)),
+				sg.Text(f"State: {state}", font=["Helvetica", 0], size=(22*G.scaling, 1*G.scaling), key=vmkeyname),
+				connbutton
+			]
+			if G.show_reset:
+				tmplayout.append(
+					sg.Button('Reset', font=["Helvetica", 14], key=resetkeyname)
+				)
+			if G.show_hibernate:
+				tmplayout.append(
+					sg.Button('Hibernate', font=["Helvetica", 14], key=hiberkeyname)
+				)
+			layoutcolumn.append(tmplayout)
 			layoutcolumn.append([sg.HorizontalSeparator()])
 	if len(vms) > 5: # We need a scrollbar
 		layout.append([sg.Column(layoutcolumn, scrollable = True, size = [450*G.scaling, None] )])
@@ -231,14 +274,56 @@ def iniwin(inistring):
 	iniwindow.close()
 	return True
 
-def vmaction(vmnode, vmid, vmtype):
+def vmaction(vmnode, vmid, vmtype, action='connect'):
 	status = False
 	if vmtype == 'qemu':
 		vmstatus = G.proxmox.nodes(vmnode).qemu(str(vmid)).status.get('current')
 	else: # Not sure this is even a thing, but here it is...
 		vmstatus = G.proxmox.nodes(vmnode).lxc(str(vmid)).status.get('current')
+	if action == 'reload':
+		stoppop = win_popup(f'Stopping {vmstatus["name"]}...')
+		sleep(.1)
+		try:
+			if vmtype == 'qemu':
+				jobid = G.proxmox.nodes(vmnode).qemu(str(vmid)).status.stop.post(timeout=28)
+			else: # Not sure this is even a thing, but here it is...
+				jobid = G.proxmox.nodes(vmnode).lxc(str(vmid)).status.stop.post(timeout=28)
+		except proxmoxer.core.ResourceException as e:
+			stoppop.close()
+			win_popup_button(f"Unable to stop VM, please provide your system administrator with the following error:\n {e!r}", 'OK')
+			return False
+		running = True
+		i = 0
+		while running and i < 30:
+			try:
+				jobstatus = G.proxmox.nodes(vmnode).tasks(jobid).status.get()
+			except Exception:
+				# We ran into a query issue here, going to skip this round and try again
+				jobstatus = {}
+			if 'exitstatus' in jobstatus:
+				stoppop.close()
+				stoppop = None
+				if jobstatus['exitstatus'] != 'OK':
+					win_popup_button('Unable to stop VM, please contact your system administrator for assistance', 'OK')
+					return False
+				else:
+					running = False
+					status = True
+			sleep(1)
+			i += 1
+		if not status:
+			if stoppop:
+				stoppop.close()
+			return status
+	status = False
+	if vmtype == 'qemu':
+		vmstatus = G.proxmox.nodes(vmnode).qemu(str(vmid)).status.get('current')
+	else: # Not sure this is even a thing, but here it is...
+		vmstatus = G.proxmox.nodes(vmnode).lxc(str(vmid)).status.get('current')
+	sleep(.2)
 	if vmstatus['status'] != 'running':
 		startpop = win_popup(f'Starting {vmstatus["name"]}...')
+		sleep(.1)
 		try:
 			if vmtype == 'qemu':
 				jobid = G.proxmox.nodes(vmnode).qemu(str(vmid)).status.start.post(timeout=28)
@@ -271,6 +356,8 @@ def vmaction(vmnode, vmid, vmtype):
 			if startpop:
 				startpop.close()
 			return status
+	if action == 'reload':
+		return
 	try:
 		if vmtype == 'qemu':
 			spiceconfig = G.proxmox.nodes(vmnode).qemu(str(vmid)).spiceproxy.post()
@@ -428,23 +515,47 @@ def showvms():
 	layout = setvmlayout(vms)
 
 	if G.icon:
-		window = sg.Window(G.title, layout, return_keyboard_events=True, finalize=True, resizable=False, no_titlebar=G.kiosk, icon=G.icon)
+		window = sg.Window(G.title, layout, return_keyboard_events=True, finalize=True, resizable=False, no_titlebar=G.kiosk, size=(G.width, G.height), icon=G.icon)
 	else:
-		window = sg.Window(G.title, layout, return_keyboard_events=True, finalize=True, resizable=False, no_titlebar=G.kiosk)
+		window = sg.Window(G.title, layout, return_keyboard_events=True, finalize=True, resizable=False, size=(G.width, G.height), no_titlebar=G.kiosk)
 	timer = datetime.now()
 	while True:
-		if (datetime.now() - timer).total_seconds() > 10:
+		if (datetime.now() - timer).total_seconds() > 5:
 			timer = datetime.now()
 			newvmlist = getvms(listonly = True)
-			if vmlist != newvmlist:
-				vmlist = newvmlist.copy()
-				layout = setvmlayout(getvms())
-				window.close()
-				if G.icon:
-					window = sg.Window(G.title, layout, return_keyboard_events=True, finalize=True, resizable=False, no_titlebar=G.kiosk, icon=G.icon)
-				else:
-					window = sg.Window(G.title, layout, return_keyboard_events=True,finalize=True, resizable=False, no_titlebar=G.kiosk)
-				window.bring_to_front()
+			if newvmlist:
+				if vmlist != newvmlist:
+					vmlist = newvmlist.copy()
+					vms = getvms()
+					if vms:
+						layout = setvmlayout(vms)
+						window.close()
+						if G.icon:
+							window = sg.Window(G.title, layout, return_keyboard_events=True, finalize=True, resizable=False, no_titlebar=G.kiosk, size=(G.width, G.height), icon=G.icon)
+						else:
+							window = sg.Window(G.title, layout, return_keyboard_events=True,finalize=True, resizable=False, no_titlebar=G.kiosk, size=(G.width, G.height))
+					window.bring_to_front()
+				else: # Refresh existing vm status
+					newvms = getvms()
+					if newvms:
+						for vm in newvms:
+							vmkeyname = f'-VM|{vm["vmid"]}-'
+							connkeyname = f'-CONN|{vm["vmid"]}-'
+							state = 'stopped'
+							if vm['status'] == 'running':
+								if 'lock' in vm:
+									state = vm['lock']
+									if state in ('suspending', 'suspended'):
+										window[connkeyname].update(disabled=True)
+										if state == 'suspended':
+											state = 'starting'
+								else:
+									state = vm['status']
+									window[connkeyname].update(disabled=False)
+							else:
+								window[connkeyname].update(disabled=False)
+							window[vmkeyname].update(f"State: {state}")
+
 		event, values = window.read(timeout = 1000)
 		if event in ('Logout', None):
 			window.close()
@@ -457,6 +568,16 @@ def showvms():
 				if str(vm['vmid']) == vmid:
 					found = True
 					vmaction(vm['node'], vmid, vm['type'])
+			if not found:
+				win_popup_button(f'VM {vm["name"]} no longer availble, please contact your system administrator', 'OK')
+		elif event.startswith('-RESET'):
+			eventparams = event.split('|')
+			vmid = eventparams[1][:-1]
+			found = False
+			for vm in vms:
+				if str(vm['vmid']) == vmid:
+					found = True
+					vmaction(vm['node'], vmid, vm['type'], action='reload')
 			if not found:
 				win_popup_button(f'VM {vm["name"]} no longer availble, please contact your system administrator', 'OK')
 	return True
