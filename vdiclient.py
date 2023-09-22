@@ -255,7 +255,7 @@ def setvmlayout(vms):
 			layoutcolumn.append(tmplayout)
 			layoutcolumn.append([sg.HorizontalSeparator()])
 	if len(vms) > 5: # We need a scrollbar
-		layout.append([sg.Column(layoutcolumn, scrollable = True, size = [450*G.scaling, None] )])
+		layout.append([sg.Column(layoutcolumn, scrollable = True, size = [None, None] )])
 	else:
 		for row in layoutcolumn:
 			layout.append(row)
