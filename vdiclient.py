@@ -1,4 +1,4 @@
-#!env python3
+#!/usr/bin/env python3
 import proxmoxer # pip install proxmoxer
 import PySimpleGUI as sg # pip install PySimpleGUI
 gui = 'TK'
