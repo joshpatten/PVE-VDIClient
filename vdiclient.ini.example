@@ -11,6 +11,8 @@ logo = vdiclient.png
 kiosk = False
 # Enable/Disable Fullscreen mode (not applicable in Kiosk mode)
 fullscreen = True
+# Disable viewer_kiosk mode if kiosk is set to true, this allows overriding remote_viewer kiosk mode
+#viewer_kiosk = False
 # Enable displaying SPICE ini file before opening virt-viewer
 inidebug = False
 # Select which guest types to display. Acceptable values: both, lxc, qemu

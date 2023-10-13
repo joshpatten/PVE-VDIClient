@@ -30,6 +30,7 @@ class G:
 	totp = False
 	imagefile = None
 	kiosk = False
+	viewer_kiosk = True
 	fullscreen = True
 	verify_ssl = True
 	icon = None
@@ -96,6 +97,8 @@ def loadconfig(config_location = None):
 				G.imagefile = config['General']['logo']
 		if 'kiosk' in config['General']:
 			G.kiosk = config['General'].getboolean('kiosk')
+		if 'viewer_kiosk' in config['General']:
+			G.viewer_kiosk = config['General'].getboolean('viewer_kiosk')
 		if 'fullscreen' in config['General']:
 			G.fullscreen = config['General'].getboolean('fullscreen')
 		if 'inidebug' in config['General']:
@@ -396,7 +399,7 @@ def vmaction(vmnode, vmid, vmtype, action='connect'):
 		closed = iniwin(inistring)
 	connpop = win_popup(f'Connecting to {vmstatus["name"]}...')
 	pcmd = [G.vvcmd]
-	if G.kiosk:
+	if G.kiosk and G.viewer_kiosk:
 		pcmd.append('--kiosk')
 		pcmd.append('--kiosk-quit')
 		pcmd.append('on-disconnect')
