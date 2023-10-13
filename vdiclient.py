@@ -41,6 +41,7 @@ class G:
 	guest_type = 'both'
 	width = None
 	height = None
+	pwresetcmd = None
 
 def loadconfig(config_location = None):
 	if config_location:
@@ -117,11 +118,13 @@ def loadconfig(config_location = None):
 		if 'tls_verify' in config['Authentication']:
 			G.verify_ssl = config['Authentication'].getboolean('tls_verify')
 		if 'user' in config['Authentication']:
-				G.user = config['Authentication']['user']
+			G.user = config['Authentication']['user']
 		if 'token_name' in config['Authentication']:
-				G.token_name = config['Authentication']['token_name']
+			G.token_name = config['Authentication']['token_name']
 		if 'token_value' in config['Authentication']:
-				G.token_value = config['Authentication']['token_value']
+			G.token_value = config['Authentication']['token_value']
+		if 'pwresetcmd' in config['Authentication']:
+			G.pwresetcmd = config['Authentication']['pwresetcmd']
 	if not 'Hosts' in config:
 		win_popup_button(f'Unable to read supplied configuration:\nNo `Hosts` section defined!', 'OK')
 		return False
@@ -180,6 +183,8 @@ def setmainlayout():
 		layout.append([sg.Button("Log In", font=["Helvetica", 14], bind_return_key=True)])
 	else:
 		layout.append([sg.Button("Log In", font=["Helvetica", 14], bind_return_key=True), sg.Button("Cancel", font=["Helvetica", 14])])
+	if G.pwresetcmd:
+		layout[-1].append(sg.Button('Password Reset', font=["Helvetica", 14]))
 	return layout
 
 def getvms(listonly = False):
@@ -483,6 +488,11 @@ def loginwindow():
 			if event == 'Cancel' or event == sg.WIN_CLOSED:
 				window.close()
 				return False
+			elif event == 'Password Reset':
+				try:
+					subprocess.check_call(G.pwresetcmd, shell=True)
+				except Exception as e:
+					win_popup_button(f'Unable to open password reset command.\n\nError Info:\n{e}', 'OK')
 			else:
 				if event in ('Log In', '\r', 'special 16777220', 'special 16777221'):
 					popwin = win_popup("Please wait, authenticating...")
@@ -513,7 +523,6 @@ def showvms():
 		win_popup_button('No desktop instances found, please consult with your system administrator', 'OK')
 		return False
 	layout = setvmlayout(vms)
-
 	if G.icon:
 		window = sg.Window(G.title, layout, return_keyboard_events=True, finalize=True, resizable=False, no_titlebar=G.kiosk, size=(G.width, G.height), icon=G.icon)
 	else:
