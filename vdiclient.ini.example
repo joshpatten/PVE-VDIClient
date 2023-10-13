@@ -36,6 +36,8 @@ tls_verify = false
 #token_value = xxx-x-x-x-xxx
 # Password Reset Command Launch. Has to be full executable Command
 #pwresetcmd = start chrome --app=http://pwreset.example.com
+# Automatically connect to a VMID upon authentication
+#auto_vmid = 100
 
 [Hosts]
 # Hosts are entered as `IP/FQDN = Port`

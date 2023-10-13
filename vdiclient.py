@@ -42,6 +42,7 @@ class G:
 	width = None
 	height = None
 	pwresetcmd = None
+	auto_vmid = None
 
 def loadconfig(config_location = None):
 	if config_location:
@@ -125,6 +126,8 @@ def loadconfig(config_location = None):
 			G.token_value = config['Authentication']['token_value']
 		if 'pwresetcmd' in config['Authentication']:
 			G.pwresetcmd = config['Authentication']['pwresetcmd']
+		if 'auto_vmid' in config['Authentication']:
+			G.auto_vmid = config['Authentication'].getint('auto_vmid')
 	if not 'Hosts' in config:
 		win_popup_button(f'Unable to read supplied configuration:\nNo `Hosts` section defined!', 'OK')
 		return False
@@ -617,6 +620,13 @@ def main():
 					return 1
 				break
 			else:
+				if G.auto_vmid:
+					vms = getvms()
+					for row in vms:
+						if row['vmid'] == G.auto_vmid:
+							vmaction(row['node'], row['vmid'], row['type'], action='connect')
+							return 0
+					win_popup_button(f'No VDI instance with ID {G.auto_vmid} found!', 'OK')
 				vmstat = showvms()
 				if not vmstat:
 					G.proxmox = None
