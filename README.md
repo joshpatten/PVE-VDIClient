@@ -32,6 +32,20 @@ Run the following commands on a Debian/Ubuntu Linux system to install the approp
     cp vdiclient.py /usr/local/bin
     chmod +x /usr/local/bin/vdiclient.py
 
+## Build Debian/Ubuntu Linux Binary
+
+Run the following commands if you wish to build a binary on a Debian/Ubuntu Linux system
+
+    apt install python3-pip python3-tk virt-viewer git
+    git clone https://github.com/joshpatten/PVE-VDIClient.git
+    cd ./PVE-VDIClient/
+    chmod +x requirements.sh
+    ./requirements.sh
+    pip3 install pyinstaller
+    pyinstaller --onefile --noconsole --noconfirm --hidden-import proxmoxer.backends --hidden-import proxmoxer.backends.https --hidden-import proxmoxer.backends.https.AuthenticationError --hidden-import proxmoxer.core --hidden-import proxmoxer.core.ResourceException --hidden-import subprocess.TimeoutExpired --hidden-import subprocess.CalledProcessError --hidden-import requests.exceptions --hidden-import requests.exceptions.ReadTimeout --hidden-import requests.exceptions.ConnectTimeout --hidden-import requests.exceptions.ConnectionError vdiclient.py
+
+Once pyinstaller has finished your binary will be located in dist/vdiclient
+
 ## Configuration File
 
 PVE VDI Client **REQUIRES** a configuration file to function. The client searches for this file in the following locations unless **--config** is specified on the commmand line:
