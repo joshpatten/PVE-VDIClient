@@ -8,6 +8,30 @@ This project's focus is to create a simple VDI client intended for mass deployme
 
 ![VDI View](screenshots/vdiview.png)
 
+## Configuration File
+
+PVE VDI Client **REQUIRES** a configuration file to function. The client searches for this file in the following locations unless overridden with [command line options](#Command Line Usage):
+
+* Windows
+    * %APPDATA%\VDIClient\vdiclient.ini
+    * %PROGRAMFILES%\VDIClient\vdiclient.ini
+* Linux
+    * ~/.config/VDIClient/vdiclient.ini
+    * /etc/vdiclient/vdiclient.ini
+    * /usr/local/etc/vdiclient/vdiclient.ini
+
+Please refer to **vdiclient.ini.example** for all available config file options
+
+If you encounter any issues feel free to submit an issue report.
+
+## Proxmox Permission Requirements
+
+Users that are accessing VDI instances need to have the following permissions assigned for each VM they access:
+
+* VM.PowerMgmt
+* VM.Console
+* VM.Audit
+
 ## Command Line Usage
 
 No command line options are required for default behavior. The following command line options are available:
@@ -67,27 +91,3 @@ Run the following commands if you wish to build a binary on a Debian/Ubuntu Linu
     pyinstaller --onefile --noconsole --noconfirm --hidden-import proxmoxer.backends --hidden-import proxmoxer.backends.https --hidden-import proxmoxer.backends.https.AuthenticationError --hidden-import proxmoxer.core --hidden-import proxmoxer.core.ResourceException --hidden-import subprocess.TimeoutExpired --hidden-import subprocess.CalledProcessError --hidden-import requests.exceptions --hidden-import requests.exceptions.ReadTimeout --hidden-import requests.exceptions.ConnectTimeout --hidden-import requests.exceptions.ConnectionError vdiclient.py
 
 Once pyinstaller has finished your binary will be located in dist/vdiclient
-
-## Configuration File
-
-PVE VDI Client **REQUIRES** a configuration file to function. The client searches for this file in the following locations unless **--config** is specified on the commmand line:
-
-* Windows
-    * %APPDATA%\VDIClient\vdiclient.ini
-    * %PROGRAMFILES%\VDIClient\vdiclient.ini
-* Linux
-    * ~/.config/VDIClient/vdiclient.ini
-    * /etc/vdiclient/vdiclient.ini
-    * /usr/local/etc/vdiclient/vdiclient.ini
-
-Please refer to **vdiclient.ini.example** for all available config file options
-
-If you encounter any issues feel free to submit an issue report.
-
-## Proxmox Permission Requirements
-
-Users that are accessing VDI instances need to have the following permissions assigned for each VM they access:
-
-* VM.PowerMgmt
-* VM.Console
-* VM.Audit
