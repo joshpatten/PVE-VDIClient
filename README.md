@@ -10,7 +10,7 @@ This project's focus is to create a simple VDI client intended for mass deployme
 
 ## Configuration File
 
-PVE VDI Client **REQUIRES** a configuration file to function. The client searches for this file in the following locations unless overridden with [command line options](#Command Line Usage):
+PVE VDI Client **REQUIRES** a configuration file to function. The client searches for this file in the following locations unless overridden with [command line options](#command-line-usage):
 
 * Windows
     * %APPDATA%\VDIClient\vdiclient.ini
