@@ -8,6 +8,28 @@ This project's focus is to create a simple VDI client intended for mass deployme
 
 ![VDI View](screenshots/vdiview.png)
 
+## Command Line Usage
+
+No command line options are required for default behavior. The following command line options are available:
+
+    usage: vdiclient.py [-h] [--list_themes] [--config_type {file,http}] [--config_location CONFIG_LOCATION]
+                        [--config_username CONFIG_USERNAME] [--config_password CONFIG_PASSWORD] [--ignore_ssl]
+    
+    Proxmox VDI Client
+    
+    options:
+      -h, --help            show this help message and exit
+      --list_themes         List all available themes
+      --config_type {file,http}
+                            Select config type (default: file)
+      --config_location CONFIG_LOCATION
+                            Specify the config location (default: search for config file)
+      --config_username CONFIG_USERNAME
+                            HTTP basic authentication username (default: None)
+      --config_password CONFIG_PASSWORD
+                            HTTP basic authentication password (default: None)
+      --ignore_ssl          HTTPS ignore SSL certificate errors (default: False)
+
 ## Windows Installation
 
 You **MUST** install virt-viewer prior to using PVE VDI client, you may download it from the [official Virtual Machine Manager](https://virt-manager.org/download.html) site.

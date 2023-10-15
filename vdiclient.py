@@ -5,9 +5,9 @@ gui = 'TK'
 import requests
 from datetime import datetime
 from configparser import ConfigParser
+import argparse
 import random
 import sys
-import copy
 import os
 import subprocess
 from time import sleep
@@ -19,6 +19,7 @@ class G:
 	hostpool = []
 	spiceproxy_conv = {}
 	proxmox = None
+	icon = None
 	vvcmd = None
 	scaling = 1
 	#########
@@ -33,54 +34,62 @@ class G:
 	viewer_kiosk = True
 	fullscreen = True
 	verify_ssl = True
-	icon = None
 	inidebug = False
 	show_reset = False
 	show_hibernate = False
 	addl_params = None
+	pwresetcmd = None
+	auto_vmid = None
 	theme = 'LightBlue'
 	guest_type = 'both'
 	width = None
 	height = None
-	pwresetcmd = None
-	auto_vmid = None
 
-def loadconfig(config_location = None):
-	if config_location:
-		config = ConfigParser(delimiters='=')
-		try:
-			config.read(config_location)
-		except Exception as e:
-			win_popup_button(f'Unable to read supplied configuration:\n{e!r}', 'OK')
-			config_location = None
-	if not config_location:
-		if os.name == 'nt': # Windows
-			config_location = f'{os.getenv("APPDATA")}\\VDIClient\\vdiclient.ini'
-			if not os.path.exists(config_location):
-				config_location = f'{os.getenv("PROGRAMFILES")}\\VDIClient\\vdiclient.ini'
-			if not os.path.exists(config_location):
-				config_location = f'{os.getenv("PROGRAMFILES(x86)")}\\VDIClient\\vdiclient.ini'
-			if not os.path.exists(config_location):
-				# Last ditch effort
-				config_location = 'C:\\Program Files\\VDIClient\\vdiclient.ini'
-			if not os.path.exists(config_location):
-				win_popup_button(f'Unable to read supplied configuration from any location!', 'OK')
+
+def loadconfig(config_location = None, config_type='file', config_username = None, config_password = None, ssl_verify = True):
+	config = ConfigParser(delimiters='=')
+	if config_type == 'file':
+		if config_location:
+			if not os.path.isfile(config_location):
+				win_popup_button(f'Unable to read supplied configuration:\n{config_location} does not exist!', 'OK')
 				return False
-		elif os.name == 'posix': #Linux
-			config_location = os.path.expanduser('~/.config/VDIClient/vdiclient.ini')
-			if not os.path.exists(config_location):
-				config_location = '/etc/vdiclient/vdiclient.ini'
-			if not os.path.exists(config_location):
-				config_location = '/usr/local/etc/vdiclient/vdiclient.ini'
-			if not os.path.exists(config_location):
-				win_popup_button(f'Unable to read supplied configuration from any location!', 'OK')
-				return False
-		config = ConfigParser(delimiters='=')
+		else:
+			if os.name == 'nt': # Windows
+				config_list = [
+					f'{os.getenv("APPDATA")}\\VDIClient\\vdiclient.ini',
+					f'{os.getenv("PROGRAMFILES")}\\VDIClient\\vdiclient.ini',
+					f'{os.getenv("PROGRAMFILES(x86)")}\\VDIClient\\vdiclient.ini',
+					'C:\\Program Files\\VDIClient\\vdiclient.ini'
+				]
+				
+			elif os.name == 'posix': #Linux
+				config_list = [
+					os.path.expanduser('~/.config/VDIClient/vdiclient.ini'),
+					'/etc/vdiclient/vdiclient.ini',
+					'/usr/local/etc/vdiclient/vdiclient.ini'
+				]
+		for location in config_list:
+			if os.path.exists(location):
+				config_location = location
+				break
+		if not config_location:
+			win_popup_button(f'Unable to read supplied configuration from any location!', 'OK')
+			return False
 		try:
 			config.read(config_location)
 		except Exception as e:
 			win_popup_button(f'Unable to read configuration file:\n{e!r}', 'OK')
-			config_location = None
+			return False
+	elif config_type == 'http':
+		try:
+			if config_username and config_password:
+				r = requests.get(url=config_location, auth=(config_username, config_password), verify = ssl_verify)
+			else:
+				r = requests.get(url=config_location, verify = ssl_verify)
+			config.read_string(r.text)
+		except Exception as e:
+			win_popup_button(f"Unable to read configuration from URL!\n{e}", "OK")
+			return False
 	if not 'General' in config:
 		win_popup_button(f'Unable to read supplied configuration:\nNo `General` section defined!', 'OK')
 		return False
@@ -131,6 +140,8 @@ def loadconfig(config_location = None):
 			G.pwresetcmd = config['Authentication']['pwresetcmd']
 		if 'auto_vmid' in config['Authentication']:
 			G.auto_vmid = config['Authentication'].getint('auto_vmid')
+		if 'knock_ip' in config['Authentication']:
+			G.knock
 	if not 'Hosts' in config:
 		win_popup_button(f'Unable to read supplied configuration:\nNo `Hosts` section defined!', 'OK')
 		return False
@@ -599,19 +610,19 @@ def showvms():
 
 def main():
 	G.scaling = 1 # TKinter requires integers
-	config_location = None
-	if len(sys.argv) > 1:
-		if sys.argv[1] == '--list_themes':
-			sg.preview_all_look_and_feel_themes()
-			return
-		if sys.argv[1] == '--config':
-			if len(sys.argv) < 3:
-				win_popup_button('No config file provided with `--config` parameter.\nPlease provide location of config file!', 'OK')
-				return
-			else:
-				config_location = sys.argv[2]
+	parser = argparse.ArgumentParser(description='Proxmox VDI Client')
+	parser.add_argument('--list_themes', help='List all available themes', action='store_true')
+	parser.add_argument('--config_type', help='Select config type (default: file)', choices=['file', 'http'], default='file')
+	parser.add_argument('--config_location', help='Specify the config location (default: search for config file)', default=None)
+	parser.add_argument('--config_username', help="HTTP basic authentication username (default: None)", default=None)
+	parser.add_argument('--config_password', help="HTTP basic authentication password (default: None)", default=None)
+	parser.add_argument('--ignore_ssl', help="HTTPS ignore SSL certificate errors (default: False)", action='store_false', default=True)
+	args = parser.parse_args()
+	if args.list_themes:
+		sg.preview_all_look_and_feel_themes()
+		return
 	setcmd()
-	if not loadconfig(config_location):
+	if not loadconfig(config_location=args.config_location, config_type=args.config_type, config_username=args.config_username, config_password=args.config_password, ssl_verify=args.ignore_ssl):
 		return False
 	sg.theme(G.theme)
 	loggedin = False
