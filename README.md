@@ -54,6 +54,8 @@ No command line options are required for default behavior. The following command
                             HTTP basic authentication password (default: None)
       --ignore_ssl          HTTPS ignore SSL certificate errors (default: False)
 
+If `--config_type http` is selected, pass the URL in the `--config_location` parameter
+
 ## Windows Installation
 
 You **MUST** install virt-viewer prior to using PVE VDI client, you may download it from the [official Virtual Machine Manager](https://virt-manager.org/download.html) site.

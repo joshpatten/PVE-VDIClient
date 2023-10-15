@@ -81,6 +81,9 @@ def loadconfig(config_location = None, config_type='file', config_username = Non
 			win_popup_button(f'Unable to read configuration file:\n{e!r}', 'OK')
 			return False
 	elif config_type == 'http':
+		if not config_location:
+			win_popup_button('--config_type http defined, yet no URL provided in --config_location parameter!', 'OK')
+			return False
 		try:
 			if config_username and config_password:
 				r = requests.get(url=config_location, auth=(config_username, config_password), verify = ssl_verify)
@@ -91,7 +94,7 @@ def loadconfig(config_location = None, config_type='file', config_username = Non
 			win_popup_button(f"Unable to read configuration from URL!\n{e}", "OK")
 			return False
 	if not 'General' in config:
-		win_popup_button(f'Unable to read supplied configuration:\nNo `General` section defined!', 'OK')
+		win_popup_button('Unable to read supplied configuration:\nNo `General` section defined!', 'OK')
 		return False
 	else:
 		if 'title' in config['General']:
