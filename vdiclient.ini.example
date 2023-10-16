@@ -23,7 +23,17 @@ guest_type = both
 #window_width = 800
 #window_height = 600
 
-[Authentication]
+# PVE-VDIClient supports multiple clusters. Define them with sections that start with Hosts. followed by the name
+# you wish to display to your end users. This example is Hosts.PVE which would display PVE to your users
+[Hosts.PVE]
+# JSON dictionary of servers in the cluster
+# Format is 'IP/FQDN': PORT
+# NOTE: MAKE SURE THAT ALL LINES ARE INDENTED
+hostpool = {
+               "10.10.10.100" : 8006,
+               "10.10.10.111" : 8006,
+               "pve1.example.com" : 8006
+           }
 # This is the authentication backend that will be used to authenticate
 auth_backend = pve
 # If enabled, 2FA TOTP entry dialog will show
@@ -31,6 +41,8 @@ auth_totp = false
 # If disabled, TLS certificate will not be checked
 tls_verify = false
 # User name (if using token)
+# NOTE: If only one cluster is defined, this will auto-login
+# If user, token_name, and token_value are set
 #user = user
 # API Token Name
 #token_name = dvi
@@ -41,10 +53,33 @@ tls_verify = false
 # Automatically connect to a VMID upon authentication
 #auto_vmid = 100
 
-[Hosts]
-# Hosts are entered as `IP/FQDN = Port`
-10.10.10.100 = 8006
-pve1.example.com = 8006
+# An additional cluster definition
+#[Hosts.PVE2]
+# JSON dictionary of servers in the cluster
+# Format is 'IP/FQDN': PORT
+#hostpool = {
+#               "10.10.10.100" : 8006,
+#               "10.10.10.111" : 8006,
+#               "pve1.example.com" : 8006
+#           }
+# This is the authentication backend that will be used to authenticate
+#auth_backend = pve
+# If enabled, 2FA TOTP entry dialog will show
+#auth_totp = false
+# If disabled, TLS certificate will not be checked
+#tls_verify = false
+# User name (if using token)
+# NOTE: If only one cluster is defined, this will auto-login
+#user = user
+# API Token Name
+#token_name = dvi
+# API Token Value
+#token_value = xxx-x-x-x-xxx
+# Password Reset Command Launch. Has to be full executable Command
+#pwresetcmd = start chrome --app=http://pwreset.example.com
+# Automatically connect to a VMID upon authentication
+#auto_vmid = 100
+
 
 [SpiceProxyRedirect]
 # The Spice Proxy provided by the Proxmox API may need to have its host/port rewritten

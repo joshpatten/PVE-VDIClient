@@ -9,6 +9,7 @@ import argparse
 import random
 import sys
 import os
+import json
 import subprocess
 from time import sleep
 from io import StringIO
@@ -16,30 +17,23 @@ from io import StringIO
 
 
 class G:
-	hostpool = []
 	spiceproxy_conv = {}
 	proxmox = None
 	icon = None
 	vvcmd = None
 	scaling = 1
 	#########
-	title = 'VDI Login'
-	backend = 'pve'
-	user = ""
-	token_name = None
-	token_value = None
-	totp = False
+	inidebug = False
+	addl_params = None
 	imagefile = None
 	kiosk = False
 	viewer_kiosk = True
 	fullscreen = True
-	verify_ssl = True
-	inidebug = False
 	show_reset = False
 	show_hibernate = False
-	addl_params = None
-	pwresetcmd = None
-	auto_vmid = None
+	current_hostset = 'DEFAULT'
+	title = 'VDI Login'
+	hosts = {}
 	theme = 'LightBlue'
 	guest_type = 'both'
 	width = None
@@ -123,37 +117,99 @@ def loadconfig(config_location = None, config_type='file', config_username = Non
 			G.width = config['General'].getint('window_width')
 		if 'window_height' in config['General']:
 			G.height = config['General'].getint('window_height')
-	if not 'Authentication' in config:
-		win_popup_button(f'Unable to read supplied configuration:\nNo `Authentication` section defined!', 'OK')
-		return False
-	else:
-		if 'auth_backend' in config['Authentication']:
-			G.backend = config['Authentication']['auth_backend']
-		if 'auth_totp' in config['Authentication']:
-			G.totp = config['Authentication'].getboolean('auth_totp')
-		if 'tls_verify' in config['Authentication']:
-			G.verify_ssl = config['Authentication'].getboolean('tls_verify')
-		if 'user' in config['Authentication']:
-			G.user = config['Authentication']['user']
-		if 'token_name' in config['Authentication']:
-			G.token_name = config['Authentication']['token_name']
-		if 'token_value' in config['Authentication']:
-			G.token_value = config['Authentication']['token_value']
-		if 'pwresetcmd' in config['Authentication']:
-			G.pwresetcmd = config['Authentication']['pwresetcmd']
-		if 'auto_vmid' in config['Authentication']:
-			G.auto_vmid = config['Authentication'].getint('auto_vmid')
-		if 'knock_ip' in config['Authentication']:
-			G.knock
-	if not 'Hosts' in config:
-		win_popup_button(f'Unable to read supplied configuration:\nNo `Hosts` section defined!', 'OK')
-		return False
-	else:
+	if 'Authentication' in config: #Legacy configuration
+		G.hosts['DEFAULT'] = {
+			'hostpool' : [],
+			'backend' : 'pve',
+			'user' : "",
+			'token_name' : None,
+			'token_value' : None,
+			'totp' : False,
+			'verify_ssl' : True,
+			'pwresetcmd' : None,
+			'auto_vmid' : None,
+			'knock_seq': []
+		}
+		if not 'Hosts' in config:
+			win_popup_button(f'Unable to read supplied configuration:\nNo `Hosts` section defined!', 'OK')
+			return False
 		for key in config['Hosts']:
-			G.hostpool.append({
+			G.hosts['DEFAULT']['hostpool'].append({
 				'host': key,
 				'port': int(config['Hosts'][key])
 			})
+		if 'auth_backend' in config['Authentication']:
+			G.hosts['DEFAULT']['backend'] = config['Authentication']['auth_backend']
+		if 'user' in config['Authentication']:
+			G.hosts['DEFAULT']['user'] = config['Authentication']['user']
+		if 'token_name' in config['Authentication']:
+			G.hosts['DEFAULT']['token_name'] = config['Authentication']['token_name']
+		if 'token_value' in config['Authentication']:
+			G.hosts['DEFAULT']['token_value'] = config['Authentication']['token_value']
+		if 'auth_totp' in config['Authentication']:
+			G.hosts['DEFAULT']['totp'] = config['Authentication'].getboolean('auth_totp')
+		if 'tls_verify' in config['Authentication']:
+			G.hosts['DEFAULT']['verify_ssl'] = config['Authentication'].getboolean('tls_verify')
+		if 'pwresetcmd' in config['Authentication']:
+			G.hosts['DEFAULT']['pwresetcmd'] = config['Authentication']['pwresetcmd']
+		if 'auto_vmid' in config['Authentication']:
+			G.hosts['DEFAULT']['auto_vmid'] = config['Authentication'].getint('auto_vmid')
+		if 'knock_seq' in config['Authentication']:
+			try:
+				G.hosts['DEFAULT']['knock_seq'] = json.loads(config['Authentication']['knock_seq'])
+			except Exception as e:
+				win_popup_button(f'Knock sequence not valid JSON, skipping!\n{e!r}', 'OK')
+	else: # New style config
+		i = 0
+		for section in config.sections():
+			if section.startswith('Hosts.'):
+				_, group = section.split('.', 1)
+				if i == 0:
+					G.current_hostset = group
+				G.hosts[group] = {
+					'hostpool' : [],
+					'backend' : 'pve',
+					'user' : "",
+					'token_name' : None,
+					'token_value' : None,
+					'totp' : False,
+					'verify_ssl' : True,
+					'pwresetcmd' : None,
+					'auto_vmid' : None,
+					'knock_seq': []
+				}
+				try:
+					hostjson = json.loads(config[section]['hostpool'])
+				except Exception as e:
+					win_popup_button(f"Error: could not parse hostpool in section {section}:\n{e!r}", "OK")
+					return False
+				for key, value in hostjson.items():
+					G.hosts[group]['hostpool'].append({
+						'host': key,
+						'port': int(value)
+					})
+				if 'auth_backend' in config[section]:
+					G.hosts[group]['backend'] = config[section]['auth_backend']
+				if 'user' in config[section]:
+					G.hosts[group]['user'] = config[section]['user']
+				if 'token_name' in config[section]:
+					G.hosts[group]['token_name'] = config[section]['token_name']
+				if 'token_value' in config[section]:
+					G.hosts[group]['token_value'] = config[section]['token_value']
+				if 'auth_totp' in config[section]:
+					G.hosts[group]['totp'] = config[section].getboolean('auth_totp')
+				if 'tls_verify' in config[section]:
+					G.hosts[group]['verify_ssl'] = config[section].getboolean('tls_verify')
+				if 'pwresetcmd' in config[section]:
+					G.hosts[group]['pwresetcmd'] = config[section]['pwresetcmd']
+				if 'auto_vmid' in config[section]:
+					G.hosts[group]['auto_vmid'] = config[section].getint('auto_vmid')
+				if 'knock_seq' in config[section]:
+					try:
+						G.hosts[group]['knock_seq'] = json.loads(config[section]['knock_seq'])
+					except Exception as e:
+						win_popup_button(f'Knock sequence not valid JSON, skipping!\n{e!r}', 'OK')
+				i += 1
 	if 'SpiceProxyRedirect' in config:
 		for key in config['SpiceProxyRedirect']:
 			G.spiceproxy_conv[key] = config['SpiceProxyRedirect'][key]
@@ -189,22 +245,192 @@ def win_popup_button(message, button):
 			return
 
 def setmainlayout():
+	readonly = False
+	if G.hosts[G.current_hostset]['user'] and G.hosts[G.current_hostset]['token_name'] and G.hosts[G.current_hostset]['token_value']:
+		readonly = True
 	layout = []
 	if G.imagefile:
-		layout.append([sg.Image(G.imagefile), sg.Text(G.title, size =(18*G.scaling, 1*G.scaling), justification='c', font=["Helvetica", 18])])
+		layout.append(
+			[
+				sg.Image(G.imagefile),
+				sg.Text(
+					G.title,
+					size = (
+						18*G.scaling,
+						1*G.scaling
+					),
+					justification = 'c',
+					font = [
+						"Helvetica", 
+						18
+					]
+				)
+			]
+		)
 	else:
-		layout.append([sg.Text(G.title, size =(30*G.scaling, 1*G.scaling), justification='c', font=["Helvetica", 18])])
-	layout.append([sg.Text("Username", size =(12*G.scaling, 1*G.scaling), font=["Helvetica", 12]), sg.InputText(default_text=G.user,key='-username-', font=["Helvetica", 12])])
-	layout.append([sg.Text("Password", size =(12*G.scaling, 1*G.scaling),font=["Helvetica", 12]), sg.InputText(key='-password-', password_char='*', font=["Helvetica", 12])])
+		layout.append(
+			[
+				sg.Text(
+					G.title,
+					size = (
+						30*G.scaling,
+						1*G.scaling
+					),
+					justification='c',
+					font = [
+						"Helvetica", 
+						18
+					]
+				)
+			]
+		)
 	
-	if G.totp:
-		layout.append([sg.Text("OTP Key", size =(12*G.scaling, 1), font=["Helvetica", 12]), sg.InputText(key='-totp-', font=["Helvetica", 12])])
+	if len(G.hosts) > 1:
+		groups = []
+		for key, _ in G.hosts.items():
+			groups.append(key)
+		layout.append(
+			[
+				sg.Text(
+					"Server Group:",
+					size = (
+						12*G.scaling,
+						1*G.scaling
+					),
+					font = [
+						"Helvetica",
+						12
+					]
+				),
+				sg.Combo(
+					groups,
+					G.current_hostset,
+					key = '-group-',
+					font = [
+						"Helvetica",
+						12
+					],
+					readonly = True,
+					enable_events = True
+				)
+			]
+		)
+
+	layout.append(
+		[
+			sg.Text(
+				"Username",
+				size = (
+					12*G.scaling,
+					1*G.scaling
+				),
+				font = [
+					"Helvetica",
+					12
+				]
+			),
+			sg.InputText(
+				default_text = G.hosts[G.current_hostset]['user'],
+				key = '-username-',
+				font = [
+					"Helvetica",
+					12
+				],
+				readonly = readonly
+			)
+		]
+	)
+	layout.append(
+		[
+			sg.Text(
+				"Password",
+				size = (
+					12*G.scaling,
+					1*G.scaling
+				),
+				font = [
+					"Helvetica",
+					12
+				]
+			),
+			sg.InputText(
+				key='-password-',
+				password_char='*',
+				font = [
+					"Helvetica",
+					12
+				],
+				readonly = readonly
+			)
+		]
+	)
+	
+	if G.hosts[G.current_hostset]['totp']:
+		layout.append(
+			[
+				sg.Text(
+					"OTP Key",
+					size = (
+						12*G.scaling,
+						1
+					),
+					font = [
+						"Helvetica",
+						12
+					]
+				),
+				sg.InputText(
+					key = '-totp-',
+					font = [
+						"Helvetica",
+						12
+					]
+				)
+			]
+		)
 	if G.kiosk:
-		layout.append([sg.Button("Log In", font=["Helvetica", 14], bind_return_key=True)])
+		layout.append(
+			[
+				sg.Button(
+					"Log In",
+					font = [
+						"Helvetica",
+						14
+					],
+					bind_return_key=True
+				)
+			]
+		)
 	else:
-		layout.append([sg.Button("Log In", font=["Helvetica", 14], bind_return_key=True), sg.Button("Cancel", font=["Helvetica", 14])])
-	if G.pwresetcmd:
-		layout[-1].append(sg.Button('Password Reset', font=["Helvetica", 14]))
+		layout.append(
+			[
+				sg.Button(
+					"Log In",
+					font = [
+						"Helvetica",
+						14
+					],
+					bind_return_key=True
+				),
+				sg.Button(
+					"Cancel",
+					font = [
+						"Helvetica",
+						14
+					]
+				)
+			]
+		)
+	if G.hosts[G.current_hostset]['pwresetcmd']:
+		layout[-1].append(
+			sg.Button(
+				'Password Reset',
+				font = [
+					"Helvetica",
+					14
+				]
+			)
+		)
 	return layout
 
 def getvms(listonly = False):
@@ -454,9 +680,9 @@ def setcmd():
 		sys.exit()
 
 def pveauth(username, passwd=None, totp=None):
-	random.shuffle(G.hostpool)
+	random.shuffle(G.hosts[G.current_hostset]['hostpool'])
 	err = None
-	for hostinfo in G.hostpool:
+	for hostinfo in G.hosts[G.current_hostset]['hostpool']:
 		host = hostinfo['host']
 		if 'port' in hostinfo:
 			port = hostinfo['port']
@@ -466,12 +692,32 @@ def pveauth(username, passwd=None, totp=None):
 		authenticated = False
 		if not connected and not authenticated:
 			try:
-				if G.token_name and G.token_value:
-					G.proxmox = proxmoxer.ProxmoxAPI(host, user=f'{username}@{G.backend}',token_name=G.token_name,token_value=G.token_value, verify_ssl=G.verify_ssl, port=port)
+				if G.hosts[G.current_hostset]['token_name'] and G.hosts[G.current_hostset]['token_value']:
+					G.proxmox = proxmoxer.ProxmoxAPI(
+						host,
+						user=f"{username}@{G.hosts[G.current_hostset]['backend']}",
+						token_name=G.hosts[G.current_hostset]['token_name'],
+						token_value=G.hosts[G.current_hostset]['token_value'],
+						verify_ssl=G.hosts[G.current_hostset]['verify_ssl'], 
+						port=port
+					)
 				elif totp:
-					G.proxmox = proxmoxer.ProxmoxAPI(host, user=f'{username}@{G.backend}', otp=totp, password=passwd, verify_ssl=G.verify_ssl, port=port)
+					G.proxmox = proxmoxer.ProxmoxAPI(
+						host,
+						user=f"{username}@{G.hosts[G.current_hostset]['backend']}",
+						otp=totp,
+						password=passwd,
+						verify_ssl=G.hosts[G.current_hostset]['verify_ssl'],
+						port=port
+					)
 				else:
-					G.proxmox = proxmoxer.ProxmoxAPI(host, user=f'{username}@{G.backend}', password=passwd, verify_ssl=G.verify_ssl, port=port)
+					G.proxmox = proxmoxer.ProxmoxAPI(
+						host,
+						user=f"{username}@{G.hosts[G.current_hostset]['backend']}",
+						password=passwd,
+						verify_ssl=G.hosts[G.current_hostset]['verify_ssl'],
+						port=port
+					)
 				connected = True
 				authenticated = True
 				return connected, authenticated, err
@@ -486,18 +732,18 @@ def pveauth(username, passwd=None, totp=None):
 
 def loginwindow():
 	layout = setmainlayout()
-	if G.user and G.token_name and G.token_value: # We need to skip the login
+	if G.hosts[G.current_hostset]['user'] and G.hosts[G.current_hostset]['token_name'] and G.hosts[G.current_hostset]['token_value'] and len(G.hosts) == 1: # We need to skip the login
 		popwin = win_popup("Please wait, authenticating...")
-		connected, authenticated, error = pveauth(G.user)
+		connected, authenticated, error = pveauth(G.hosts[G.current_hostset]['user'])
 		popwin.close()
 		if not connected:
 			win_popup_button(f'Unable to connect to any VDI server, are you connected to the Internet?\nError Info: {error}', 'OK')
-			return False
+			return False, False
 		elif connected and not authenticated:
 			win_popup_button('Invalid username and/or password, please try again!', 'OK')
-			return False
+			return False, False
 		elif connected and authenticated:
-			return True
+			return True, False
 	else:
 		if G.icon:
 			window = sg.Window(G.title, layout, return_keyboard_events=True, resizable=False, no_titlebar=G.kiosk, icon=G.icon)
@@ -505,12 +751,17 @@ def loginwindow():
 			window = sg.Window(G.title, layout, return_keyboard_events=True, resizable=False, no_titlebar=G.kiosk)
 		while True:
 			event, values = window.read()
+			if event == '-group-' and values['-group-'] != G.current_hostset:
+				#Switch cluster
+				G.current_hostset = values['-group-']
+				window.close()
+				return False, True
 			if event == 'Cancel' or event == sg.WIN_CLOSED:
 				window.close()
-				return False
+				return False, False
 			elif event == 'Password Reset':
 				try:
-					subprocess.check_call(G.pwresetcmd, shell=True)
+					subprocess.check_call(G.hosts[G.current_hostset]['pwresetcmd'], shell=True)
 				except Exception as e:
 					win_popup_button(f'Unable to open password reset command.\n\nError Info:\n{e}', 'OK')
 			else:
@@ -530,7 +781,7 @@ def loginwindow():
 						win_popup_button('Invalid username and/or password, please try again!', 'OK')
 					elif connected and authenticated:
 						window.close()
-						return True
+						return True, False
 					#break
 
 def showvms():
@@ -629,26 +880,29 @@ def main():
 		return False
 	sg.theme(G.theme)
 	loggedin = False
+	switching = False
 	while True:
 		if not loggedin:
-			loggedin = loginwindow()
-			if not loggedin:
-				if G.user and G.token_name and G.token_value: # This means if we don't exit we'll be in an infinite loop
+			loggedin, switching = loginwindow()
+			if not loggedin and not switching:
+				if G.hosts[G.current_hostset]['user'] and G.hosts[G.current_hostset]['token_name'] and G.hosts[G.current_hostset]['token_value']: # This means if we don't exit we'll be in an infinite loop
 					return 1
 				break
+			elif not loggedin and switching:
+				pass
 			else:
-				if G.auto_vmid:
+				if G.hosts[G.current_hostset]['auto_vmid']:
 					vms = getvms()
 					for row in vms:
-						if row['vmid'] == G.auto_vmid:
+						if row['vmid'] == G.hosts[G.current_hostset]['auto_vmid']:
 							vmaction(row['node'], row['vmid'], row['type'], action='connect')
 							return 0
-					win_popup_button(f'No VDI instance with ID {G.auto_vmid} found!', 'OK')
+					win_popup_button(f"No VDI instance with ID {G.hosts[G.current_hostset]['auto_vmid']} found!", 'OK')
 				vmstat = showvms()
 				if not vmstat:
 					G.proxmox = None
 					loggedin = False
-					if G.user and G.token_name and G.token_value: # This means if we don't exit we'll be in an infinite loop
+					if G.hosts[G.current_hostset]['user'] and G.hosts[G.current_hostset]['token_name'] and G.hosts[G.current_hostset]['token_value'] and len(G.hosts) == 1: # This means if we don't exit we'll be in an infinite loop
 						return 0
 				else:
 					return
