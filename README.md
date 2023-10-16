@@ -22,7 +22,7 @@ PVE VDI Client **REQUIRES** a configuration file to function. The client searche
     * /etc/vdiclient/vdiclient.ini
     * /usr/local/etc/vdiclient/vdiclient.ini
 
-Please refer to **vdiclient.ini.example** for all available config file options
+Please refer to [vdiclient.ini.example](https://github.com/joshpatten/PVE-VDIClient/blob/main/vdiclient.ini.example) for all available config file options
 
 If you encounter any issues feel free to submit an issue report.
 
