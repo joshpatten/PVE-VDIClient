@@ -66,7 +66,7 @@ Please visit the [releases](https://github.com/joshpatten/PVE-VDIClient/releases
 
 If you need to customize the installation, such as to sign the executable and MSI, you may download and install the [WIX toolset](https://wixtoolset.org/releases/) and use the build_vdiclient.bat file to build a new MSI.
 
-you will need to download the latest 3.10 python release, and run the following commands to install the necessary packages:
+you will need to download the latest 3.12 python release, and run the following commands to install the necessary packages:
 
     requirements.bat
 
