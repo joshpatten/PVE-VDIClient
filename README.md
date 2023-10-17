@@ -82,6 +82,18 @@ Run the following commands on a Debian/Ubuntu Linux system to install the approp
     cp vdiclient.py /usr/local/bin
     chmod +x /usr/local/bin/vdiclient.py
 
+## Fedora/CentOS/RHEL Installation
+
+Run the following commands on a Debian/Ubuntu Linux system to install the appropriate prerequisites
+
+    dnf install python3-pip python3-tkinter virt-viewer git
+    git clone https://github.com/joshpatten/PVE-VDIClient.git
+    cd ./PVE-VDIClient/
+    chmod +x requirements.sh
+    ./requirements.sh
+    cp vdiclient.py /usr/local/bin
+    chmod +x /usr/local/bin/vdiclient.py
+
 ## Build Debian/Ubuntu Linux Binary
 
 Run the following commands if you wish to build a binary on a Debian/Ubuntu Linux system
