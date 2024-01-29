@@ -38,6 +38,8 @@ hostpool = {
 auth_backend = pve
 # If enabled, 2FA TOTP entry dialog will show
 auth_totp = false
+# Set timeout in seconds for login. Defaults to 5
+# auth_timeout = 15 
 # If disabled, TLS certificate will not be checked
 tls_verify = false
 # User name (if using token)
