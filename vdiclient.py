@@ -477,6 +477,7 @@ def setvmlayout(vms):
 	listheader = [
 		sg.Text("Node:", font=["Helvetica", 14], size=(22*G.scaling, 1*G.scaling)),
 		sg.Text("Type:", font=["Helvetica", 14], size=(22*G.scaling, 1*G.scaling)),
+		sg.Text("ID:", font=["Helvetica", 14], size=(22*G.scaling, 1*G.scaling)),
 		sg.Text("Name:", font=["Helvetica", 14], size=(22*G.scaling, 1*G.scaling)),
 		sg.Text("State:", font=["Helvetica", 14], size=(22*G.scaling, 1*G.scaling)),
 		sg.Text("Actions:", font=["Helvetica", 14], size=(22*G.scaling, 1*G.scaling))
@@ -503,6 +504,7 @@ def setvmlayout(vms):
 			tmplayout =	[
 				sg.Text(vm['node'], font=["Helvetica", 14], size=(22*G.scaling, 1*G.scaling)),
 				sg.Text(vm['type'], font=["Helvetica", 14], size=(22*G.scaling, 1*G.scaling)),
+				sg.Text(vm['id'].split("/")[1], font=["Helvetica", 14], size=(22*G.scaling, 1*G.scaling)),
 				sg.Text(vm['name'], font=["Helvetica", 14], size=(22*G.scaling, 1*G.scaling)),
 				sg.Text(state, font=["Helvetica", 0], size=(22*G.scaling, 1*G.scaling), key=vmkeyname),
 				connbutton
