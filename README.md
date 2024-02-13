@@ -84,7 +84,7 @@ Run the following commands on a Debian/Ubuntu Linux system to install the approp
 
 ## Fedora/CentOS/RHEL Installation
 
-Run the following commands on a Debian/Ubuntu Linux system to install the appropriate prerequisites
+Run the following commands on a Fedora/CentOS/RHEL Linux system to install the appropriate prerequisites
 
     dnf install python3-pip python3-tkinter virt-viewer git
     git clone https://github.com/joshpatten/PVE-VDIClient.git
