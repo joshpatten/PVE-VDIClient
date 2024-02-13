@@ -452,7 +452,8 @@ def getvms(listonly = False):
 						{
 							'vmid': vm['vmid'],
 							'name': vm['name'],
-							'node': vm['node']
+							'node': vm['node'],
+							'type': vm['type']
 						}
 					)
 				else:
@@ -473,6 +474,16 @@ def setvmlayout(vms):
 		layout.append([sg.Text(G.title, size =(30*G.scaling, 1*G.scaling), justification='c', font=["Helvetica", 18])])
 	layout.append([sg.Text('Please select a desktop instance to connect to', size =(40*G.scaling, 1*G.scaling), justification='c', font=["Helvetica", 10])])
 	layoutcolumn = []
+	listheader = [
+		sg.Text("Node:", font=["Helvetica", 14], size=(22*G.scaling, 1*G.scaling)),
+		sg.Text("Type:", font=["Helvetica", 14], size=(22*G.scaling, 1*G.scaling)),
+		sg.Text("ID:", font=["Helvetica", 14], size=(22*G.scaling, 1*G.scaling)),
+		sg.Text("Name:", font=["Helvetica", 14], size=(22*G.scaling, 1*G.scaling)),
+		sg.Text("State:", font=["Helvetica", 14], size=(22*G.scaling, 1*G.scaling)),
+		sg.Text("Actions:", font=["Helvetica", 14], size=(22*G.scaling, 1*G.scaling))
+	]
+	layoutcolumn.append(listheader)
+	layoutcolumn.append([sg.HorizontalSeparator()])
 	for vm in vms:
 		if not vm["status"] == "unknown":
 			vmkeyname = f'-VM|{vm["vmid"]}-'
@@ -491,8 +502,11 @@ def setvmlayout(vms):
 				else:
 					state = vm['status']
 			tmplayout =	[
+				sg.Text(vm['node'], font=["Helvetica", 14], size=(22*G.scaling, 1*G.scaling)),
+				sg.Text(vm['type'], font=["Helvetica", 14], size=(22*G.scaling, 1*G.scaling)),
+				sg.Text(vm['id'].split("/")[1], font=["Helvetica", 14], size=(22*G.scaling, 1*G.scaling)),
 				sg.Text(vm['name'], font=["Helvetica", 14], size=(22*G.scaling, 1*G.scaling)),
-				sg.Text(f"State: {state}", font=["Helvetica", 0], size=(22*G.scaling, 1*G.scaling), key=vmkeyname),
+				sg.Text(state, font=["Helvetica", 0], size=(22*G.scaling, 1*G.scaling), key=vmkeyname),
 				connbutton
 			]
 			if G.show_reset:
@@ -834,7 +848,7 @@ def showvms():
 									window[connkeyname].update(disabled=False)
 							else:
 								window[connkeyname].update(disabled=False)
-							window[vmkeyname].update(f"State: {state}")
+							window[vmkeyname].update(state)
 
 		event, values = window.read(timeout = 1000)
 		if event in ('Logout', None):
