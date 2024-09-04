@@ -30,7 +30,7 @@ class G:
 	viewer_kiosk = True
 	fullscreen = True
 	show_reset = False
-	show_hibernate = False
+	show_hibernate = True  #2024/8/29 complete "hibernate" function - change default to be "True".
 	current_hostset = 'DEFAULT'
 	title = 'VDI Login'
 	hosts = {}
@@ -113,6 +113,8 @@ def loadconfig(config_location = None, config_type='file', config_username = Non
 			G.guest_type = config['General']['guest_type']
 		if 'show_reset' in config['General']:
 			G.show_reset = config['General'].getboolean('show_reset')
+		if 'show_hibernate' in config['General']: #2024/9/4 fix "hibernate" function problem - get "show_hibernate" value from config file. 
+			G.show_hibernate = config['General'].getboolean('show_hibernate')
 		if 'window_width' in config['General']:
 			G.width = config['General'].getint('window_width')
 		if 'window_height' in config['General']:
@@ -481,27 +483,37 @@ def setvmlayout(vms):
 			hiberkeyname = f'-HIBER|{vm["vmid"]}-'
 			state = 'stopped'
 			connbutton = sg.Button('Connect', font=["Helvetica", 14], key=connkeyname)
+			hiberbutton = sg.Button('Hibernate', font=["Helvetica", 14], key=hiberkeyname, disabled=True) #2024/8/29 complete "hibernate" function - add "hibernate" button.
+			statetext = sg.Text(f"State: {state}", font=["Helvetica", 0], background_color='red', size=(22*G.scaling, 1*G.scaling), key=vmkeyname) #2024/9/4 add "state" text background - inital "statetext" variable.
 			if vm['status'] == 'running':
 				if 'lock' in vm:
 					state = vm['lock']
+					statetext = sg.Text(f"State: {state}", font=["Helvetica", 0], background_color='white', size=(22*G.scaling, 1*G.scaling), key=vmkeyname) #2024/9/4 add "state" text background - set to "white" color.
 					if state in ('suspending', 'suspended'):
+						''' #2024/8/29 complete "hibernate" function - because of considering "hibernate" status, "starting" is not suitable for this.
 						if state == 'suspended':
 							state = 'starting'
+                                                ''' 
 						connbutton = sg.Button('Connect', font=["Helvetica", 14], key=connkeyname, disabled=True)
+						if G.show_hibernate: #2024/8/29 complete "hibernate" function - "hibernate" button should be disabled for this.
+							hiberbutton = sg.Button('Hibernate', font=["Helvetica", 14], key=hiberkeyname, disabled=True)
 				else:
 					state = vm['status']
+					statetext = sg.Text(f"State: {state}", font=["Helvetica", 0], background_color='green', size=(22*G.scaling, 1*G.scaling), key=vmkeyname) #2024/9/4 add "state" text background - set to "green" color.
+					if G.show_hibernate: #2024/8/29 complete "hibernate" function - "hibernate" button should be enabled for this.
+							hiberbutton = sg.Button('Hibernate', font=["Helvetica", 14], key=hiberkeyname, disabled=False)
 			tmplayout =	[
 				sg.Text(vm['name'], font=["Helvetica", 14], size=(22*G.scaling, 1*G.scaling)),
-				sg.Text(f"State: {state}", font=["Helvetica", 0], size=(22*G.scaling, 1*G.scaling), key=vmkeyname),
+				statetext, #2024/9/4 add "state" text background - - "state" text is defined.
 				connbutton
 			]
 			if G.show_reset:
 				tmplayout.append(
 					sg.Button('Reset', font=["Helvetica", 14], key=resetkeyname)
 				)
-			if G.show_hibernate:
+			if G.show_hibernate: 
 				tmplayout.append(
-					sg.Button('Hibernate', font=["Helvetica", 14], key=hiberkeyname)
+					hiberbutton #2024/8/29 complete "hibernate" function - "hibernate" button is defined. #2024/9/4 fix "hibernate" function problem - fix wrong code . 
 				)
 			layoutcolumn.append(tmplayout)
 			layoutcolumn.append([sg.HorizontalSeparator()])
@@ -566,6 +578,42 @@ def vmaction(vmnode, vmid, vmtype, action='connect'):
 			if stoppop:
 				stoppop.close()
 			return status
+	elif action == 'hibernate': #2024/8/29 complete "hibernate" function - add "hibernate" action. it seems like "reload".
+		stoppop = win_popup(f'Hibernating {vmstatus["name"]} ...')
+		sleep(.1)
+		try:
+			if vmtype == 'qemu':
+				jobid = G.proxmox.nodes(vmnode).qemu(str(vmid)).status.suspend.post(todisk=1)
+			else: # Not sure this is even a thing, but here it is...
+				jobid = G.proxmox.nodes(vmnode).lxc(str(vmid)).status.suspend.post(todisk=1)
+		except proxmoxer.core.ResourceException as e:
+			stoppop.close()
+			win_popup_button(f"Unable to stop VM, please provide your system administrator with the following error:\n {e!r}", 'OK')
+			return False
+		running = True
+		i = 0
+		while running and i < 30:
+			try:
+				jobstatus = G.proxmox.nodes(vmnode).tasks(jobid).status.get()
+			except Exception:
+				# We ran into a query issue here, going to skip this round and try again
+				jobstatus = {}
+			if 'exitstatus' in jobstatus:
+				stoppop.close()
+				stoppop = None
+				if jobstatus['exitstatus'] != 'OK':
+					win_popup_button('Unable to stop VM, please contact your system administrator for assistance', 'OK')
+					return False
+				else:
+					running = False
+					status = True
+			sleep(1)
+			i += 1
+		if not status:
+			if stoppop:
+				stoppop.close()
+			return status
+		return	#2024/8/29 complete "hibernate" function - should be return because the vm don't need to start up again.
 	status = False
 	if vmtype == 'qemu':
 		vmstatus = G.proxmox.nodes(vmnode).qemu(str(vmid)).status.get('current')
@@ -821,20 +869,32 @@ def showvms():
 						for vm in newvms:
 							vmkeyname = f'-VM|{vm["vmid"]}-'
 							connkeyname = f'-CONN|{vm["vmid"]}-'
+							hiberkeyname = f'-HIBER|{vm["vmid"]}-' #2024/8/29 complete "hibernate" function - refresh "hibernate" button.
 							state = 'stopped'
+							window[vmkeyname].update(f"State: {state}", background_color='red') #2024/9/4 add "state" text background - update to "red" color.
 							if vm['status'] == 'running':
 								if 'lock' in vm:
 									state = vm['lock']
+									window[vmkeyname].update(f"State: {state}", background_color='white') #2024/9/4 add "state" text background - update to "white" color.
 									if state in ('suspending', 'suspended'):
 										window[connkeyname].update(disabled=True)
+										if G.show_hibernate: #2024/8/29 complete "hibernate" function - "hibernate" button should be disabled for this.
+											window[hiberkeyname].update(disabled=True)
+										''' #2024/8/29 complete "hibernate" function - because of considering "hibernate" status, "starting" is not suitable for this.
 										if state == 'suspended':
 											state = 'starting'
+	                                                                        ''' 
 								else:
 									state = vm['status']
+									window[vmkeyname].update(f"State: {state}", background_color='green') #2024/9/4 add "state" text background - update to "green" color.
 									window[connkeyname].update(disabled=False)
+									if G.show_hibernate: #2024/8/29 complete "hibernate" function - "hibernate" button should be enabled for this.
+										window[hiberkeyname].update(disabled=False)
 							else:
+								window[vmkeyname].update(f"State: {state}", background_color='red') #2024/9/4 add "state" text background - update to "red" color.
 								window[connkeyname].update(disabled=False)
-							window[vmkeyname].update(f"State: {state}")
+								if G.show_hibernate: #2024/8/29 complete "hibernate" function - "hibernate" button should be disabled for this.
+									window[hiberkeyname].update(disabled=True)
 
 		event, values = window.read(timeout = 1000)
 		if event in ('Logout', None):
@@ -858,6 +918,16 @@ def showvms():
 				if str(vm['vmid']) == vmid:
 					found = True
 					vmaction(vm['node'], vmid, vm['type'], action='reload')
+			if not found:
+				win_popup_button(f'VM {vm["name"]} no longer availble, please contact your system administrator', 'OK')
+		elif event.startswith('-HIBER'): #2024/8/29 complete "hibernate" function - "hibernate" action check.
+			eventparams = event.split('|')
+			vmid = eventparams[1][:-1]
+			found = False
+			for vm in vms:
+				if str(vm['vmid']) == vmid:
+					found = True
+					vmaction(vm['node'], vmid, vm['type'], action='hibernate')
 			if not found:
 				win_popup_button(f'VM {vm["name"]} no longer availble, please contact your system administrator', 'OK')
 	return True

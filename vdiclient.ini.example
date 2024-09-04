@@ -19,6 +19,8 @@ inidebug = False
 guest_type = both
 # Show VM option for resetting VM
 #show_reset = True
+# Show VM option for hibernating VM
+#show_hibernate = True
 # Set Window Dimensions. Only use if window isn't sizing properly
 #window_width = 800
 #window_height = 600
