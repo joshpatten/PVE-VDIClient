@@ -304,7 +304,7 @@ class PackageGenerator:
 			})
 
 	def path_to_id(self, pathname):
-			return pathname.replace('\\', '_').replace('/', '_').replace('#', '_').replace('-', '_').replace("+", "__")
+			return pathname.replace('\\', '_').replace('/', '_').replace('#', '_').replace('-', '_').replace("+", "__").replace(" ", "_")
 	
 	def create_xml(self, nodes, current_dir, parent_xml_node, staging_dir):
 		cur_node = nodes[current_dir]
@@ -344,11 +344,11 @@ class PackageGenerator:
 			self.create_xml(nodes, os.path.join(current_dir, dirname), dir_node, staging_dir)
 
 	def build_package(self):
-		wixdir = 'c:\\Program Files\\Wix Toolset v3.11\\bin'
+		wixdir = 'c:\\Program Files\\Wix Toolset v3.14\\bin'
 		if platform.system() != "Windows":
 			wixdir = '/usr/bin'
 		if not os.path.isdir(wixdir):
-			wixdir = 'c:\\Program Files (x86)\\Wix Toolset v3.11\\bin'
+			wixdir = 'c:\\Program Files (x86)\\Wix Toolset v3.14\\bin'
 		if not os.path.isdir(wixdir):
 			print("ERROR: This script requires WIX")
 			sys.exit(1)
