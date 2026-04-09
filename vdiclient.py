@@ -355,17 +355,14 @@ def set_window_icon(window):
 	if not G.icon or not os.path.exists(G.icon):
 		return
 	try:
-		if os.name == 'nt':
-			window.iconbitmap(G.icon)
-		else:
-			icon = load_image(G.icon)
-			if icon:
-				window.iconphoto(True, icon)
-				window._icon_image = icon
+		icon = load_image(G.icon)
+		if icon:
+			# iconphoto(True, ...) sets the icon for this window and as the default for the app
+			window.iconphoto(True, icon)
+			window._icon_image = icon
+			if os.name == 'nt' and G.icon.lower().endswith('.ico'):
 				try:
-					root = get_hidden_root()
-					root.iconphoto(True, icon)
-					root._icon_image = icon
+					window.iconbitmap(G.icon)
 				except Exception:
 					pass
 	except Exception:
