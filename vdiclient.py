@@ -266,7 +266,7 @@ def get_font(name):
 
 def center_window(window):
 	window.deiconify()
-	window.update()
+	window.update_idletasks()
 	width = window.winfo_reqwidth()
 	height = window.winfo_reqheight()
 	screen_width = window.winfo_screenwidth()
@@ -298,6 +298,8 @@ def apply_kiosk_state(window):
 		fixed_x = window.winfo_x()
 		fixed_y = window.winfo_y()
 		def lock_position(event):
+			if not window.winfo_exists():
+				return
 			# If the window moves away from its fixed position, snap it back
 			if window.winfo_x() != fixed_x or window.winfo_y() != fixed_y:
 				window.geometry(f"+{fixed_x}+{fixed_y}")
@@ -373,15 +375,19 @@ def set_window_icon(window):
 def win_popup(message):
 	root = get_hidden_root()
 	window = VDIWindow(root)
-	window.title('')
-	window.resizable(False, False)
+	# Remove all window decorations and disable interaction functions (moving/closing)
+	window.overrideredirect(True)
+	window.attributes("-topmost", True)
+	window.protocol("WM_DELETE_WINDOW", lambda: None)
+
 	frame = ctk.CTkFrame(window, corner_radius=12)
 	frame.pack(padx=18, pady=18, fill='both', expand=True)
 	label = ctk.CTkLabel(frame, text=message, wraplength=420, justify='center', font=get_font('LABEL_FONT'))
 	label.pack(padx=10, pady=(10, 14))
-	center_window(window)
 	window.close = window.destroy
-	apply_kiosk_state(window)
+	center_window(window)
+	window.lift()
+	window.focus_force()
 	window.update()
 	return window
 
@@ -395,12 +401,23 @@ def win_popup_button(message, button):
 	frame.pack(padx=18, pady=18, fill='both', expand=True)
 	label = ctk.CTkLabel(frame, text=message, wraplength=420, justify='center', font=get_font('LABEL_FONT'))
 	label.pack(padx=10, pady=(10, 14))
-	action = ctk.CTkButton(frame, text=button, command=window.destroy, font=get_font('BUTTON_FONT'))
+
+	def close_and_destroy():
+		window.after(0, window.destroy) # Schedule destruction for the next idle point
+
+	action = ctk.CTkButton(frame, text=button, command=close_and_destroy, font=get_font('BUTTON_FONT'))
 	action.pack(padx=10, pady=(0, 10))
 	center_window(window)
+	apply_kiosk_state(window)
+	window.lift()
+	window.focus_force()
 	if not G.kiosk:
 		window.grab_set()
-	apply_kiosk_state(window)
+	try:
+		window.wait_visibility(window)
+	except tk.TclError:
+		pass
+	window.update()
 	window.wait_window()
 
 

@@ -64,11 +64,15 @@ You **MUST** install virt-viewer prior to using PVE VDI client, you may download
 
 Please visit the [releases](https://github.com/joshpatten/PVE-VDIClient/releases) section to download a prebuilt MSI package
 
-If you need to customize the installation, such as to sign the executable and MSI, you may download and install the [WIX toolset](https://wixtoolset.org/releases/) and use the build_vdiclient.bat file to build a new MSI.
+If you need to customize the installation, such as to sign the executable and MSI, you may download and install the [legacy WIX 3.14 toolset](https://github.com/wixtoolset/wix3/releases) and use the build_vdiclient.bat file to build a new MSI.
 
-you will need to download the latest 3.12 python release, and run the following commands to install the necessary packages:
+you will need to download the latest Python 3.14 release, and run the following commands to install the necessary packages:
 
     requirements.bat
+
+After installing requirements make any changes you need and run the MSI build script:
+
+    build_vdiclient.bat
 
 ## Linux Installation
 
@@ -98,7 +102,7 @@ Run the following commands on a Debian/Ubuntu Linux system to install the approp
 
 Run the following commands if you wish to build a binary on a Debian/Ubuntu Linux system
 
-    apt install python3-pip python3-tk virt-viewer git
+    apt install python3-pip python3-tk virt-viewr git
     git clone https://github.com/joshpatten/PVE-VDIClient.git
     cd ./PVE-VDIClient/
     chmod +x requirements.sh
