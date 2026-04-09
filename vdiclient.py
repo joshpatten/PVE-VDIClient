@@ -360,11 +360,6 @@ def set_window_icon(window):
 			# iconphoto(True, ...) sets the icon for this window and as the default for the app
 			window.iconphoto(True, icon)
 			window._icon_image = icon
-			if os.name == 'nt' and G.icon.lower().endswith('.ico'):
-				try:
-					window.iconbitmap(G.icon)
-				except Exception:
-					pass
 	except Exception:
 		pass
 
