@@ -418,7 +418,10 @@ def win_popup_button(message, button):
 	except tk.TclError:
 		pass
 	window.update()
-	window.wait_window()
+	try:
+		window.wait_window()
+	except Exception:
+		pass
 
 
 def _build_login_window():
