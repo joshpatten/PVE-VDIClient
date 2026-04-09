@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 import proxmoxer # pip install proxmoxer
-import PySimpleGUI as sg # pip install PySimpleGUI
-gui = 'TK'
 import requests
+import tkinter as tk
+import customtkinter as ctk
 from datetime import datetime
 from configparser import ConfigParser
 import argparse
@@ -11,8 +11,11 @@ import sys
 import os
 import json
 import subprocess
+import sys # Added for sys.stderr
+import math
+import base64
 from time import sleep
-from io import StringIO
+from io import StringIO, BytesIO
 
 
 
@@ -38,6 +41,13 @@ class G:
 	guest_type = 'both'
 	width = None
 	height = None
+	page_size = 10
+	timeout = 15
+	TITLE_FONT = {'size': 30, 'weight': 'bold'}
+	VM_NAME_FONT = {'size': 24, 'weight': 'bold'}
+	DEFAULT_FONT = {'size': 18}
+	LABEL_FONT = {'size': 18}
+	BUTTON_FONT = {'size': 18}
 
 
 def loadconfig(config_location = None, config_type='file', config_username = None, config_password = None, ssl_verify = True):
@@ -117,6 +127,11 @@ def loadconfig(config_location = None, config_type='file', config_username = Non
 			G.width = config['General'].getint('window_width')
 		if 'window_height' in config['General']:
 			G.height = config['General'].getint('window_height')
+		if 'page_size' in config['General']:
+			G.page_size = config['General'].getint('page_size')
+		if 'timeout' in config['General']:
+			G.timeout = config['General'].getint('timeout')
+	
 	if 'Authentication' in config: #Legacy configuration
 		G.hosts['DEFAULT'] = {
 			'hostpool' : [],
@@ -219,219 +234,255 @@ def loadconfig(config_location = None, config_type='file', config_username = Non
 			G.addl_params[key] = config['AdditionalParameters'][key]
 	return True
 
-def win_popup(message):
-	layout = [
-		[sg.Text(message, key='-TXT-')]
-	]
-	window = sg.Window('Message', layout, return_keyboard_events=True, no_titlebar=True, keep_on_top=True, finalize=True, )
-	window.bring_to_front()
-	_, _ = window.read(timeout=10) # Fixes a black screen bug
-	window['-TXT-'].update(message)
-	sleep(.15)
-	window['-TXT-'].update(message)
-	return window
-	
-def win_popup_button(message, button):
-	layout = [
-				[sg.Text(message)],
-				[sg.Button(button)]
-			]
-	window = sg.Window('Message', layout, return_keyboard_events=True, no_titlebar=True, keep_on_top=True, finalize=True)
-	window.Element(button).SetFocus()
-	while True:
-		event, values = window.read()
-		if event in (button, sg.WIN_CLOSED, 'Log In', '\r', 'special 16777220', 'special 16777221'):
-			window.close()
-			return
+def get_hidden_root():
+	if getattr(G, '_hidden_root', None) is None:
+		ctk.set_default_color_theme('blue')
+		root = ctk.CTk()
+		root.withdraw()
+		G._hidden_root = root
+	return G._hidden_root
 
-def setmainlayout():
-	readonly = False
-	if G.hosts[G.current_hostset]['user'] and G.hosts[G.current_hostset]['token_name'] and G.hosts[G.current_hostset]['token_value']:
-		readonly = True
-	layout = []
-	if G.imagefile:
-		layout.append(
-			[
-				sg.Image(G.imagefile),
-				sg.Text(
-					G.title,
-					size = (
-						18*G.scaling,
-						1*G.scaling
-					),
-					justification = 'c',
-					font = [
-						"Helvetica", 
-						18
-					]
-				)
-			]
-		)
+
+def apply_theme():
+	theme = str(G.theme).strip().lower() if G.theme else ''
+	if 'dark' in theme:
+		ctk.set_appearance_mode('Dark')
+	elif 'light' in theme:
+		ctk.set_appearance_mode('Light')
 	else:
-		layout.append(
-			[
-				sg.Text(
-					G.title,
-					size = (
-						30*G.scaling,
-						1*G.scaling
-					),
-					justification='c',
-					font = [
-						"Helvetica", 
-						18
-					]
-				)
-			]
-		)
-	
-	if len(G.hosts) > 1:
-		groups = []
-		for key, _ in G.hosts.items():
-			groups.append(key)
-		layout.append(
-			[
-				sg.Text(
-					"Server Group:",
-					size = (
-						12*G.scaling,
-						1*G.scaling
-					),
-					font = [
-						"Helvetica",
-						12
-					]
-				),
-				sg.Combo(
-					groups,
-					G.current_hostset,
-					key = '-group-',
-					font = [
-						"Helvetica",
-						12
-					],
-					readonly = True,
-					enable_events = True
-				)
-			]
-		)
+		ctk.set_appearance_mode('System')
+	ctk.set_default_color_theme('blue')
 
-	layout.append(
-		[
-			sg.Text(
-				"Username",
-				size = (
-					12*G.scaling,
-					1*G.scaling
-				),
-				font = [
-					"Helvetica",
-					12
-				]
-			),
-			sg.InputText(
-				default_text = G.hosts[G.current_hostset]['user'],
-				key = '-username-',
-				font = [
-					"Helvetica",
-					12
-				],
-				readonly = readonly
-			)
-		]
-	)
-	layout.append(
-		[
-			sg.Text(
-				"Password",
-				size = (
-					12*G.scaling,
-					1*G.scaling
-				),
-				font = [
-					"Helvetica",
-					12
-				]
-			),
-			sg.InputText(
-				key='-password-',
-				password_char='*',
-				font = [
-					"Helvetica",
-					12
-				],
-				readonly = readonly
-			)
-		]
-	)
-	
-	if G.hosts[G.current_hostset]['totp']:
-		layout.append(
-			[
-				sg.Text(
-					"OTP Key",
-					size = (
-						12*G.scaling,
-						1
-					),
-					font = [
-						"Helvetica",
-						12
-					]
-				),
-				sg.InputText(
-					key = '-totp-',
-					font = [
-						"Helvetica",
-						12
-					]
-				)
-			]
-		)
+_font_cache = {}
+
+def get_font(name):
+	font_def = getattr(G, name, None)
+	if isinstance(font_def, dict):
+		if name not in _font_cache:
+			_font_cache[name] = ctk.CTkFont(**font_def)
+		return _font_cache[name]
+	return font_def
+
+
+def center_window(window):
+	window.update_idletasks()
+	window.deiconify()
+	width = window.winfo_reqwidth()
+	height = window.winfo_reqheight()
+	screen_width = window.winfo_screenwidth()
+	screen_height = window.winfo_screenheight()
+	x = max(0, (screen_width - width) // 2)
+	y = max(0, (screen_height - height) // 2)
+	window.geometry(f"{width}x{height}+{x}+{y}")
+	window.update_idletasks()
+
+class VDIWindow(ctk.CTkToplevel):
+	def __init__(self, *args, **kwargs):
+		super().__init__(*args, **kwargs)
+
+def apply_kiosk_state(window):
 	if G.kiosk:
-		layout.append(
-			[
-				sg.Button(
-					"Log In",
-					font = [
-						"Helvetica",
-						14
-					],
-					bind_return_key=True
-				)
-			]
-		)
-	else:
-		layout.append(
-			[
-				sg.Button(
-					"Log In",
-					font = [
-						"Helvetica",
-						14
-					],
-					bind_return_key=True
-				),
-				sg.Button(
-					"Cancel",
-					font = [
-						"Helvetica",
-						14
-					]
-				)
-			]
-		)
+		window.update_idletasks()
+		# Set window type to 'toolbar' - this is an X11 hint that often removes decorations
+		# and taskbar entries, but behavior can vary by WM.
+		try:
+			window.attributes('-type', 'toolbar')
+		except tk.TclError:
+			# Fallback if '-type' is not supported (e.g., some macOS versions or older Tk)
+			pass
+		# Disable the Close button functionality
+		window.protocol("WM_DELETE_WINDOW", lambda: None)
+		# Disable Maximize and Resize functionality
+		window.resizable(False, False)
+		# Prevent moving: Store the current centered position
+		fixed_x = window.winfo_x()
+		fixed_y = window.winfo_y()
+		def lock_position(event):
+			# If the window moves away from its fixed position, snap it back
+			if window.winfo_x() != fixed_x or window.winfo_y() != fixed_y:
+				window.geometry(f"+{fixed_x}+{fixed_y}")
+		# Bind to Configure (move/resize events) to effectively "disable" the title bar drag
+		window.bind("<Configure>", lock_position, add="+")
+
+def load_image(path, for_ctk_label=False, size=None):
+	if not path or not os.path.exists(path):
+		return None
+	if for_ctk_label:
+		try:
+			from PIL import Image
+			image = Image.open(path)
+			if size:
+				image = image.resize(size, Image.ANTIALIAS)
+			return ctk.CTkImage(light_image=image, dark_image=image, size=image.size if size is None else size)
+		except Exception:
+			try:
+				return tk.PhotoImage(file=path)
+			except Exception:
+				if path.lower().endswith('.ico'):
+					try:
+						from PIL import Image
+						image = Image.open(path)
+						if size:
+							image = image.resize(size, Image.ANTIALIAS)
+						buf = BytesIO()
+						image.save(buf, format='PNG')
+						data = base64.b64encode(buf.getvalue()).decode('ascii')
+						return tk.PhotoImage(data=data)
+					except Exception:
+						return None
+				return None
+	try:
+		return tk.PhotoImage(file=path)
+	except Exception:
+		if path.lower().endswith('.ico'):
+			try:
+				from PIL import Image
+				image = Image.open(path)
+				if size:
+					image = image.resize(size, Image.ANTIALIAS)
+				buf = BytesIO()
+				image.save(buf, format='PNG')
+				data = base64.b64encode(buf.getvalue()).decode('ascii')
+				return tk.PhotoImage(data=data)
+			except Exception:
+				return None
+		return None
+
+
+def set_window_icon(window):
+	if not G.icon or not os.path.exists(G.icon):
+		return
+	try:
+		if os.name == 'nt':
+			window.iconbitmap(G.icon)
+		else:
+			icon = load_image(G.icon)
+			if icon:
+				window.iconphoto(True, icon)
+				window._icon_image = icon
+				try:
+					root = get_hidden_root()
+					root.iconphoto(True, icon)
+					root._icon_image = icon
+				except Exception:
+					pass
+	except Exception:
+		pass
+
+
+def win_popup(message):
+	root = get_hidden_root()
+	window = VDIWindow(root)
+	window.title('')
+	window.resizable(False, False)
+	frame = ctk.CTkFrame(window, corner_radius=12)
+	frame.pack(padx=18, pady=18, fill='both', expand=True)
+	label = ctk.CTkLabel(frame, text=message, wraplength=420, justify='center', font=get_font('LABEL_FONT'))
+	label.pack(padx=10, pady=(10, 14))
+	center_window(window)
+	window.close = window.destroy
+	apply_kiosk_state(window)
+	return window
+
+
+def win_popup_button(message, button):
+	root = get_hidden_root()
+	window = VDIWindow(root)
+	window.title('')
+	window.resizable(False, False)
+	frame = ctk.CTkFrame(window, corner_radius=12)
+	frame.pack(padx=18, pady=18, fill='both', expand=True)
+	label = ctk.CTkLabel(frame, text=message, wraplength=420, justify='center', font=get_font('LABEL_FONT'))
+	label.pack(padx=10, pady=(10, 14))
+	action = ctk.CTkButton(frame, text=button, command=window.destroy, font=get_font('BUTTON_FONT'))
+	action.pack(padx=10, pady=(0, 10))
+	center_window(window)
+	if not G.kiosk:
+		window.grab_set()
+	apply_kiosk_state(window)
+	window.wait_window()
+
+
+def _build_login_window():
+	root = get_hidden_root()
+	window = VDIWindow(root)
+	window.title(G.title)
+	set_window_icon(window)
+	container = ctk.CTkFrame(window, corner_radius=15)
+	container.pack(padx=20, pady=20, fill='both', expand=True)
+	if G.imagefile:
+		image = load_image(G.imagefile, for_ctk_label=True)
+		if image:
+			if isinstance(image, tk.PhotoImage):
+				logo_bg = None
+				try:
+					logo_bg = container.cget('fg_color')
+				except Exception:
+					pass
+				logo = tk.Label(container, image=image, text='', bd=0)
+			else:
+				logo = ctk.CTkLabel(container, image=image, text='')
+			logo.image = image
+			logo.pack(pady=(0, 12))
+	title_label = ctk.CTkLabel(container, text=G.title, font=get_font('TITLE_FONT'))
+	title_label.pack(pady=(0, 16))
+	group_combo = None
+	if len(G.hosts) > 1:
+		groups = list(G.hosts.keys())
+		combo_label = ctk.CTkLabel(container, text='Server Group:', font=get_font('LABEL_FONT'))
+		combo_label.pack(anchor='w', pady=(0, 4))
+		group_combo = ctk.CTkComboBox(container, values=groups, font=get_font('DEFAULT_FONT'))
+		group_combo.set(G.current_hostset)
+		group_combo.pack(fill='x', pady=(0, 14))
+	username_label = ctk.CTkLabel(container, text='Username', font=get_font('LABEL_FONT'))
+	username_label.pack(anchor='w', pady=(0, 4))
+	username_entry = ctk.CTkEntry(container, placeholder_text='Username', font=get_font('DEFAULT_FONT'))
+	username_entry.insert(0, G.hosts[G.current_hostset]['user'] or '')
+	username_entry.pack(fill='x', pady=(0, 12))
+	username_entry.focus_set()
+	password_label = ctk.CTkLabel(container, text='Password', font=get_font('LABEL_FONT'))
+	password_label.pack(anchor='w', pady=(0, 4))
+	password_entry = ctk.CTkEntry(container, placeholder_text='Password', show='*', font=get_font('DEFAULT_FONT'))
+	password_entry.pack(fill='x', pady=(0, 12))
+	totp_entry = None
+	if G.hosts[G.current_hostset]['totp']:
+		totp_label = ctk.CTkLabel(container, text='OTP Key', font=get_font('LABEL_FONT'))
+		totp_label.pack(anchor='w', pady=(0, 4))
+		totp_entry = ctk.CTkEntry(container, placeholder_text='TOTP code', font=get_font('DEFAULT_FONT'))
+		totp_entry.pack(fill='x', pady=(0, 12))
+	button_frame = ctk.CTkFrame(container, fg_color='transparent')
+	button_frame.pack(fill='x', pady=(6, 0))
+	login_button = ctk.CTkButton(button_frame, text='Log In', font=get_font('BUTTON_FONT'))
+	login_button.pack(side='left', expand=True, fill='x', padx=(0, 8 if not G.kiosk else 0))
+	cancel_button = None
+	if not G.kiosk:
+		cancel_button = ctk.CTkButton(button_frame, text='Cancel', font=get_font('BUTTON_FONT'))
+		cancel_button.pack(side='left', expand=True, fill='x')
+	pwreset_button = None
 	if G.hosts[G.current_hostset]['pwresetcmd']:
-		layout[-1].append(
-			sg.Button(
-				'Password Reset',
-				font = [
-					"Helvetica",
-					14
-				]
-			)
-		)
-	return layout
+		pwreset_button = ctk.CTkButton(container, text='Password Reset', font=get_font('BUTTON_FONT'))
+		pwreset_button.pack(fill='x', pady=(12, 0))
+	window.update_idletasks()
+	width = window.winfo_reqwidth()
+	height = window.winfo_reqheight()
+	x = max(0, (window.winfo_screenwidth() - width) // 2)
+	y = max(0, (window.winfo_screenheight() - height) // 2)
+	window.geometry(f"{width}x{height}+{x}+{y}")
+	window.deiconify()
+	apply_kiosk_state(window)
+	username_entry.focus_set() # Ensure username entry gets focus
+	window_data_entry = username_entry
+	return {
+		'window': window,
+		'group_combo': group_combo,
+		'username_entry': username_entry,
+		'password_entry': password_entry,
+		'totp_entry': totp_entry,
+		'login_button': login_button,
+		'cancel_button': cancel_button,
+		'pwreset_button': pwreset_button
+	}
+
 
 def getvms(listonly = False):
 	vms = []
@@ -461,68 +512,30 @@ def getvms(listonly = False):
 	except proxmoxer.core.ResourceException as e:
 		win_popup_button(f"Unable to display list of VMs:\n {e!r}", 'OK')
 		return False
-	except requests.exceptions.ConnectionError as e:
-		print(f"Encountered error when querying proxmox: {e!r}")
+	except requests.exceptions.RequestException as e: # Catch all requests-related exceptions
+		print(f"Network error when querying Proxmox during VM refresh: {e!r}", file=sys.stderr)
+		return False
+	except Exception as e: # Catch any other unexpected errors
+		print(f"An unexpected error occurred in getvms: {e!r}", file=sys.stderr)
 		return False
 
-def setvmlayout(vms):
-	layout = []
-	if G.imagefile:
-		layout.append([sg.Image(G.imagefile), sg.Text(G.title, size =(18*G.scaling, 1*G.scaling), justification='c', font=["Helvetica", 18])])
-	else:
-		layout.append([sg.Text(G.title, size =(30*G.scaling, 1*G.scaling), justification='c', font=["Helvetica", 18])])
-	layout.append([sg.Text('Please select a desktop instance to connect to', size =(40*G.scaling, 1*G.scaling), justification='c', font=["Helvetica", 10])])
-	layoutcolumn = []
-	for vm in vms:
-		if not vm["status"] == "unknown":
-			vmkeyname = f'-VM|{vm["vmid"]}-'
-			connkeyname = f'-CONN|{vm["vmid"]}-'
-			resetkeyname = f'-RESET|{vm["vmid"]}-'
-			hiberkeyname = f'-HIBER|{vm["vmid"]}-'
-			state = 'stopped'
-			connbutton = sg.Button('Connect', font=["Helvetica", 14], key=connkeyname)
-			if vm['status'] == 'running':
-				if 'lock' in vm:
-					state = vm['lock']
-					if state in ('suspending', 'suspended'):
-						if state == 'suspended':
-							state = 'starting'
-						connbutton = sg.Button('Connect', font=["Helvetica", 14], key=connkeyname, disabled=True)
-				else:
-					state = vm['status']
-			tmplayout =	[
-				sg.Text(vm['name'], font=["Helvetica", 14], size=(22*G.scaling, 1*G.scaling)),
-				sg.Text(f"State: {state}", font=["Helvetica", 0], size=(22*G.scaling, 1*G.scaling), key=vmkeyname),
-				connbutton
-			]
-			if G.show_reset:
-				tmplayout.append(
-					sg.Button('Reset', font=["Helvetica", 14], key=resetkeyname)
-				)
-			if G.show_hibernate:
-				tmplayout.append(
-					sg.Button('Hibernate', font=["Helvetica", 14], key=hiberkeyname)
-				)
-			layoutcolumn.append(tmplayout)
-			layoutcolumn.append([sg.HorizontalSeparator()])
-	if len(vms) > 5: # We need a scrollbar
-		layout.append([sg.Column(layoutcolumn, scrollable = True, size = [None, None] )])
-	else:
-		for row in layoutcolumn:
-			layout.append(row)
-	layout.append([sg.Button('Logout', font=["Helvetica", 14])])
-	return layout
 
 def iniwin(inistring):
-	inilayout = [
-			[sg.Multiline(default_text=inistring, size=(100, 40))]
-	]
-	iniwindow = sg.Window('INI debug', inilayout)
-	while True:
-		event, values = iniwindow.read()
-		if event == None:
-			break
-	iniwindow.close()
+	root = get_hidden_root()
+	window = VDIWindow(root)
+	window.title('INI debug')
+	set_window_icon(window)
+	window.geometry('850x550')
+	text_box = ctk.CTkTextbox(window, width=820, height=460, corner_radius=10, font=get_font('DEFAULT_FONT'))
+	text_box.pack(padx=15, pady=(15, 8), fill='both', expand=True)
+	text_box.insert('0.0', inistring)
+	text_box.configure(state='disabled')
+	close_btn = ctk.CTkButton(window, text='Close', command=window.destroy, font=get_font('BUTTON_FONT'))
+	close_btn.pack(pady=(0, 15))
+	if not G.kiosk:
+		window.grab_set()
+	apply_kiosk_state(window)
+	window.wait_window()
 	return True
 
 def vmaction(vmnode, vmid, vmtype, action='connect'):
@@ -731,9 +744,8 @@ def pveauth(username, passwd=None, totp=None):
 	return connected, authenticated, err
 
 def loginwindow():
-	layout = setmainlayout()
-	if G.hosts[G.current_hostset]['user'] and G.hosts[G.current_hostset]['token_name'] and G.hosts[G.current_hostset]['token_value'] and len(G.hosts) == 1: # We need to skip the login
-		popwin = win_popup("Please wait, authenticating...")
+	if G.hosts[G.current_hostset]['user'] and G.hosts[G.current_hostset]['token_name'] and G.hosts[G.current_hostset]['token_value'] and len(G.hosts) == 1:
+		popwin = win_popup('Please wait, authenticating...')
 		connected, authenticated, error = pveauth(G.hosts[G.current_hostset]['user'])
 		popwin.close()
 		if not connected:
@@ -744,123 +756,292 @@ def loginwindow():
 			return False, False
 		elif connected and authenticated:
 			return True, False
-	else:
-		if G.icon:
-			window = sg.Window(G.title, layout, return_keyboard_events=True, resizable=False, no_titlebar=G.kiosk, icon=G.icon)
+	window_data = _build_login_window()
+	window = window_data['window']
+	result = {'action': None, 'group': None}
+
+	def on_switch(choice):
+		if choice and choice != G.current_hostset:
+			result['action'] = 'switch'
+			result['group'] = choice
+			window.destroy()
+
+	def do_cancel():
+		result['action'] = 'cancel'
+		window.destroy()
+
+	def do_login():
+		user = window_data['username_entry'].get()
+		passwd = window_data['password_entry'].get()
+		totp = None
+		if window_data['totp_entry']:
+			totp = window_data['totp_entry'].get()
+		popwin = win_popup('Please wait, authenticating...')
+		connected, authenticated, error = pveauth(user, passwd=passwd, totp=totp)
+		popwin.close()
+		if not connected:
+			win_popup_button(f'Unable to connect to any VDI server, are you connected to the Internet?\nError Info: {error}', 'OK')
+		elif connected and not authenticated:
+			win_popup_button('Invalid username and/or password, please try again!', 'OK')
 		else:
-			window = sg.Window(G.title, layout, return_keyboard_events=True, resizable=False, no_titlebar=G.kiosk)
-		while True:
-			event, values = window.read()
-			if event == '-group-' and values['-group-'] != G.current_hostset:
-				#Switch cluster
-				G.current_hostset = values['-group-']
-				window.close()
-				return False, True
-			if event == 'Cancel' or event == sg.WIN_CLOSED:
-				window.close()
-				return False, False
-			elif event == 'Password Reset':
-				try:
-					subprocess.check_call(G.hosts[G.current_hostset]['pwresetcmd'], shell=True)
-				except Exception as e:
-					win_popup_button(f'Unable to open password reset command.\n\nError Info:\n{e}', 'OK')
-			else:
-				if event in ('Log In', '\r', 'special 16777220', 'special 16777221'):
-					popwin = win_popup("Please wait, authenticating...")
-					user = values['-username-']
-					passwd = values['-password-']
-					totp = None
-					if '-totp-' in values:
-						if values['-totp-'] not in (None, ''):
-							totp = values['-totp-']
-					connected, authenticated, error = pveauth(user, passwd=passwd, totp=totp)
-					popwin.close()
-					if not connected:
-						win_popup_button(f'Unable to connect to any VDI server, are you connected to the Internet?\nError Info: {error}', 'OK')
-					elif connected and not authenticated:
-						win_popup_button('Invalid username and/or password, please try again!', 'OK')
-					elif connected and authenticated:
-						window.close()
-						return True, False
-					#break
+			result['action'] = 'login'
+			window.destroy()
+
+	if window_data['group_combo']:
+		window_data['group_combo'].configure(command=on_switch)
+	window_data['login_button'].configure(command=do_login)
+	if window_data['cancel_button']:
+		window_data['cancel_button'].configure(command=do_cancel)
+	if window_data['pwreset_button']:
+		def open_reset():
+			try:
+				subprocess.check_call(G.hosts[G.current_hostset]['pwresetcmd'], shell=True)
+			except Exception as e:
+				win_popup_button(f'Unable to open password reset command.\n\nError Info:\n{e}', 'OK')
+		window_data['pwreset_button'].configure(command=open_reset)
+	window.bind('<Return>', lambda event: do_login())
+	window.protocol('WM_DELETE_WINDOW', do_cancel)
+	if not G.kiosk:
+		window.grab_set()
+	window.wait_window()
+
+	if result['action'] == 'switch':
+		G.current_hostset = result['group']
+		return False, True
+	if result['action'] == 'login':
+		return True, False
+	return False, False
+
+
+def _build_vm_row(parent, vm, on_connect, on_reset):
+	frame = ctk.CTkFrame(parent, corner_radius=12)
+	frame.pack(fill='x', padx=12, pady=(0, 10))
+	info_frame = ctk.CTkFrame(frame, fg_color='transparent')
+	info_frame.pack(side='left', fill='x', expand=True, padx=(0, 8))
+	name_label = ctk.CTkLabel(info_frame, text=vm['name'], font=get_font('VM_NAME_FONT'))
+	name_label.pack(anchor='w')
+	state_label = ctk.CTkLabel(info_frame, text='State: unknown', anchor='w', font=get_font('LABEL_FONT'))
+	state_label.pack(anchor='w', pady=(4, 0))
+	button_frame = ctk.CTkFrame(frame, fg_color='transparent')
+	button_frame.pack(side='right')
+	conn_button = ctk.CTkButton(button_frame, text='Connect', width=120, command=lambda: on_connect(vm), font=get_font('BUTTON_FONT'))
+	conn_button.pack(pady=(0, 4))
+	reset_button = None
+	if G.show_reset:
+		reset_button = ctk.CTkButton(button_frame, text='Reset', width=120, fg_color='#3b8ed0', hover_color='#4fa1e7', command=lambda: on_reset(vm), font=get_font('BUTTON_FONT'))
+		reset_button.pack(pady=(0, 4))
+	return frame, state_label, conn_button, reset_button
+
 
 def showvms():
 	vms = getvms()
-	vmlist = getvms(listonly=True)
-	newvmlist = vmlist.copy()
 	if vms == False:
 		return False
 	if len(vms) < 1:
 		win_popup_button('No desktop instances found, please consult with your system administrator', 'OK')
 		return False
-	layout = setvmlayout(vms)
-	if G.icon:
-		window = sg.Window(G.title, layout, return_keyboard_events=True, finalize=True, resizable=False, no_titlebar=G.kiosk, size=(G.width, G.height), icon=G.icon)
-	else:
-		window = sg.Window(G.title, layout, return_keyboard_events=True, finalize=True, resizable=False, size=(G.width, G.height), no_titlebar=G.kiosk)
-	timer = datetime.now()
-	while True:
-		if (datetime.now() - timer).total_seconds() > 5:
-			timer = datetime.now()
-			newvmlist = getvms(listonly = True)
-			if newvmlist:
-				if vmlist != newvmlist:
-					vmlist = newvmlist.copy()
-					vms = getvms()
-					if vms:
-						layout = setvmlayout(vms)
-						window.close()
-						if G.icon:
-							window = sg.Window(G.title, layout, return_keyboard_events=True, finalize=True, resizable=False, no_titlebar=G.kiosk, size=(G.width, G.height), icon=G.icon)
-						else:
-							window = sg.Window(G.title, layout, return_keyboard_events=True,finalize=True, resizable=False, no_titlebar=G.kiosk, size=(G.width, G.height))
-					window.bring_to_front()
-				else: # Refresh existing vm status
-					newvms = getvms()
-					if newvms:
-						for vm in newvms:
-							vmkeyname = f'-VM|{vm["vmid"]}-'
-							connkeyname = f'-CONN|{vm["vmid"]}-'
-							state = 'stopped'
-							if vm['status'] == 'running':
-								if 'lock' in vm:
-									state = vm['lock']
-									if state in ('suspending', 'suspended'):
-										window[connkeyname].update(disabled=True)
-										if state == 'suspended':
-											state = 'starting'
-								else:
-									state = vm['status']
-									window[connkeyname].update(disabled=False)
-							else:
-								window[connkeyname].update(disabled=False)
-							window[vmkeyname].update(f"State: {state}")
+	root = get_hidden_root()
+	window = VDIWindow(root)
+	window.title(G.title)
+	set_window_icon(window)
+	container = ctk.CTkFrame(window, corner_radius=15)
+	container.pack(padx=20, pady=20, fill='both', expand=True)
+	if G.imagefile:
+		image = load_image(G.imagefile, for_ctk_label=True)
+		if image:
+			if isinstance(image, tk.PhotoImage):
+				logo_bg = None
+				try:
+					logo_bg = container.cget('fg_color')
+				except Exception:
+					pass
+				logo = tk.Label(container, image=image, text='', bd=0)
+			else:
+				logo = ctk.CTkLabel(container, image=image, text='')
+			logo.image = image
+			logo.pack(pady=(0, 12))
+	title_label = ctk.CTkLabel(container, text=G.title, font=get_font('TITLE_FONT'))
+	title_label.pack(pady=(0, 6))
+	subtitle = ctk.CTkLabel(container, text='Please select a desktop instance to connect to', font=get_font('LABEL_FONT'))
+	subtitle.pack(pady=(0, 14))
+	ctk.CTkFrame(container, height=4, fg_color=("gray70", "gray30")).pack(fill='x', padx=10, pady=(0, 14))
+	# Initialize current_page to 0 before calculating total_pages
+	current_page = 0
+	visible_vms = [vm for vm in vms if vm.get('status') != 'unknown']
+	total_pages = max(1, math.ceil(len(visible_vms) / G.page_size))
+	vm_frame = ctk.CTkFrame(container, fg_color='transparent')
+	vm_frame.pack(fill='both', expand=True) # Pack vm_frame first to take all available space
+	page_frame = ctk.CTkFrame(container, fg_color='transparent')
+	# Do not pack page_frame here; visibility handled in build_vm_list
+	page_separator = ctk.CTkFrame(container, height=4, fg_color=("gray70", "gray30"))
+	page_label = ctk.CTkLabel(page_frame, text=f'Page {current_page + 1} of {total_pages}', font=get_font('LABEL_FONT'))
+	prev_button = ctk.CTkButton(page_frame, text='Previous', width=100, font=get_font('BUTTON_FONT'))
+	next_button = ctk.CTkButton(page_frame, text='Next', width=100, font=get_font('BUTTON_FONT'))
+	# These are initially packed in build_vm_list based on total_pages
+	vm_controls = {}
+	current_vmlist = getvms(listonly=True)
 
-		event, values = window.read(timeout = 1000)
-		if event in ('Logout', None):
-			window.close()
-			return False
-		if event.startswith('-CONN'):
-			eventparams = event.split('|')
-			vmid = eventparams[1][:-1]
-			found = False
-			for vm in vms:
-				if str(vm['vmid']) == vmid:
-					found = True
-					vmaction(vm['node'], vmid, vm['type'])
-			if not found:
-				win_popup_button(f'VM {vm["name"]} no longer availble, please contact your system administrator', 'OK')
-		elif event.startswith('-RESET'):
-			eventparams = event.split('|')
-			vmid = eventparams[1][:-1]
-			found = False
-			for vm in vms:
-				if str(vm['vmid']) == vmid:
-					found = True
-					vmaction(vm['node'], vmid, vm['type'], action='reload')
-			if not found:
-				win_popup_button(f'VM {vm["name"]} no longer availble, please contact your system administrator', 'OK')
-	return True
+	def update_vm_row(vm, state_label, conn_button):
+		state = 'stopped'
+		if vm.get('status') == 'running':
+			if 'lock' in vm:
+				state = vm['lock']
+				if state in ('suspending', 'suspended'):
+					if state == 'suspended':
+						state = 'starting'
+				conn_button.configure(state='disabled')
+			else:
+				state = vm['status']
+				conn_button.configure(state='normal')
+		else:
+			conn_button.configure(state='normal')
+		state_label.configure(text=f'State: {state}')
+
+	def on_connect(vm):
+		vmaction(vm['node'], vm['vmid'], vm['type'])
+
+	def on_reset(vm):
+		vmaction(vm['node'], vm['vmid'], vm['type'], action='reload')
+
+	def update_page_controls():
+		page_label.configure(text=f'Page {current_page + 1} of {total_pages}')
+		prev_button.configure(state='normal' if current_page > 0 else 'disabled')
+		next_button.configure(state='normal' if current_page < total_pages - 1 else 'disabled')
+
+	def change_page(delta):
+		nonlocal current_page
+		current_page = max(0, min(total_pages - 1, current_page + delta))
+		update_page_controls()
+		build_vm_list(visible_vms)
+
+	prev_button.configure(command=lambda: change_page(-1))
+	next_button.configure(command=lambda: change_page(1))
+
+	def build_vm_list(vms_to_render):
+		filtered_vms = [vm for vm in vms_to_render if vm.get('status') != 'unknown']
+		nonlocal total_pages, current_page
+		total_pages = max(1, math.ceil(len(filtered_vms) / G.page_size))
+		current_page = min(current_page, total_pages - 1)
+		start = current_page * G.page_size
+		end = start + G.page_size
+		page_items = filtered_vms[start:end]
+		for child in vm_frame.winfo_children():
+			child.destroy()
+		vm_controls.clear()
+		for i, vm in enumerate(page_items):
+			frame, state_label, conn_button, reset_button = _build_vm_row(vm_frame, vm, on_connect, on_reset)
+			update_vm_row(vm, state_label, conn_button)
+			vm_controls[str(vm['vmid'])] = {
+				'state': state_label,
+				'button': conn_button
+			}
+			if i < len(page_items) - 1:
+				ctk.CTkFrame(vm_frame, height=2, fg_color=("gray75", "gray25")).pack(fill='x', padx=24, pady=(0, 10))
+		update_page_controls()
+		# Control visibility of pagination elements
+		if total_pages > 1:
+			page_separator.pack(side='bottom', fill='x', pady=(10, 0))
+			page_frame.pack(side='bottom', fill='x', pady=(4, 0))
+			page_label.pack(side='left')
+			prev_button.pack(side='left', padx=(10, 8))
+			next_button.pack(side='left')
+		else:
+			page_separator.pack_forget()
+			page_frame.pack_forget()
+
+
+
+	refresh_id = None
+	timeout_id = None
+
+	def refresh():
+		nonlocal current_vmlist, refresh_id
+		
+		# First, try to get the list of VMs (vmid, name, node) for structural comparison
+		new_list_only_vms = getvms(listonly=True)
+		if new_list_only_vms is False:
+			# If there was an error getting the list (e.g., timeout),
+			# just reschedule and return without updating the UI.
+			if window.winfo_exists():
+				refresh_id = window.after(5000, refresh)
+			return
+
+		# If the list structure has changed, or if it's the first refresh
+		if new_list_only_vms != current_vmlist:
+			current_vmlist = new_list_only_vms.copy()
+			# Get full VM details to rebuild the list
+			new_vms_full_details = getvms()
+			if new_vms_full_details is False:
+				if window.winfo_exists():
+					refresh_id = window.after(5000, refresh)
+				return
+			if new_vms_full_details:
+				build_vm_list(new_vms_full_details)
+		else:
+			# If only VM statuses might have changed, get full details and update existing rows
+			new_vms_full_details = getvms()
+			if new_vms_full_details is False:
+				if window.winfo_exists():
+					refresh_id = window.after(5000, refresh)
+				return
+			if new_vms_full_details:
+				for vm in new_vms_full_details:
+					row = vm_controls.get(str(vm['vmid']))
+					if row: # Only update if the row exists
+						update_vm_row(vm, row['state'], row['button'])
+		if window.winfo_exists():
+			refresh_id = window.after(5000, refresh)
+
+	def reset_timeout(event=None):
+		nonlocal timeout_id
+		if timeout_id:
+			window.after_cancel(timeout_id)
+		if G.timeout > 0:
+			timeout_id = window.after(G.timeout * 60 * 1000, close_vm_window)
+
+	def close_vm_window():
+		nonlocal refresh_id, timeout_id
+		if refresh_id and window.winfo_exists():
+			window.after_cancel(refresh_id)
+		if timeout_id and window.winfo_exists():
+			window.after_cancel(timeout_id)
+		result.update({'logout': True})
+		window.destroy()
+
+	logout_button = ctk.CTkButton(container, text='Logout', fg_color='#d65f5f', hover_color='#d85f5f', command=close_vm_window, font=get_font('BUTTON_FONT'))
+	logout_button.pack(side='bottom', pady=(12, 0), fill='x')
+
+	# Pack logout button and page_frame with side='bottom' to anchor them below vm_frame
+	build_vm_list(vms) # This will conditionally pack page_frame with side='bottom'
+
+	# The vm_frame is already packed with expand=True above.
+	# The build_vm_list function will now correctly pack page_frame with side='bottom'
+	# and it will appear above the logout button.
+
+	window.update() # Force full geometry sync
+	width = window.winfo_reqwidth()
+	height = window.winfo_reqheight()
+	if G.width and G.height:
+		try:
+			requested_width = int(G.width)
+			width = max(width, int(requested_width * 1.5))
+		except Exception:
+			pass
+	x = max(0, (window.winfo_screenwidth() - width) // 2)
+	y = max(0, (window.winfo_screenheight() - height) // 2)
+	window.geometry(f"{width}x{height}+{x}+{y}")
+	result = {'logout': False}
+	window.protocol('WM_DELETE_WINDOW', close_vm_window)
+	window.deiconify()
+	apply_kiosk_state(window)
+	if G.timeout > 0:
+		reset_timeout()
+		window.bind_all("<Any-KeyPress>", reset_timeout)
+		window.bind_all("<Button>", reset_timeout)
+		window.bind_all("<Motion>", reset_timeout)
+	refresh_id = window.after(5000, refresh)
+	window.wait_window()
+	return not result['logout']
 
 def main():
 	G.scaling = 1 # TKinter requires integers
@@ -873,12 +1054,13 @@ def main():
 	parser.add_argument('--ignore_ssl', help="HTTPS ignore SSL certificate errors (default: False)", action='store_false', default=True)
 	args = parser.parse_args()
 	if args.list_themes:
-		sg.preview_all_look_and_feel_themes()
+		print('appearance modes: System, Light, Dark')
+		print('default color theme: blue')
 		return
 	setcmd()
 	if not loadconfig(config_location=args.config_location, config_type=args.config_type, config_username=args.config_username, config_password=args.config_password, ssl_verify=args.ignore_ssl):
 		return False
-	sg.theme(G.theme)
+	apply_theme()
 	loggedin = False
 	switching = False
 	while True:

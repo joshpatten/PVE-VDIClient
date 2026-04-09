@@ -1,8 +1,8 @@
 [General]
 # This is the title that is diplayed to the user
-title = VDI Login
-# This is the PySimpleGui Theme that is used. Run vdiclient.py with flag `--list_themes` for a list of themes
-theme = LightBlue
+title = VDI Client
+# This is the customtkinter theme. Options are system, light, dark
+theme = system
 # Program Icon
 icon = vdiicon.ico
 # Logo displayed on all windows
@@ -22,6 +22,10 @@ guest_type = both
 # Set Window Dimensions. Only use if window isn't sizing properly
 #window_width = 800
 #window_height = 600
+# Set page size for pagination of VM list
+#page_size = 10
+# Inactivity Timeout (in minutes). Default is no timeout (0)
+#timeout = 15
 
 # PVE-VDIClient supports multiple clusters. Define them with sections that start with Hosts. followed by the name
 # you wish to display to your end users. This example is Hosts.PVE which would display PVE to your users
