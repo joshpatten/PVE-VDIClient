@@ -2,7 +2,7 @@
 # This is the title that is diplayed to the user
 title = VDI Client
 # This is the customtkinter theme. Options are system, light, dark
-theme = system
+theme = dark
 # Program Icon
 icon = vdiicon.ico
 # Logo displayed on all windows

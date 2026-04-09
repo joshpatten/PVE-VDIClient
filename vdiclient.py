@@ -312,7 +312,7 @@ def load_image(path, for_ctk_label=False, size=None):
 	if for_ctk_label:
 		try:
 			from PIL import Image
-			image = Image.open(path)
+			image = Image.open(path).convert("RGBA")
 			if size:
 				image = image.resize(size, Image.ANTIALIAS)
 			return ctk.CTkImage(light_image=image, dark_image=image, size=image.size if size is None else size)
@@ -323,7 +323,7 @@ def load_image(path, for_ctk_label=False, size=None):
 				if path.lower().endswith('.ico'):
 					try:
 						from PIL import Image
-						image = Image.open(path)
+						image = Image.open(path).convert("RGBA")
 						if size:
 							image = image.resize(size, Image.ANTIALIAS)
 						buf = BytesIO()
@@ -339,7 +339,7 @@ def load_image(path, for_ctk_label=False, size=None):
 		if path.lower().endswith('.ico'):
 			try:
 				from PIL import Image
-				image = Image.open(path)
+				image = Image.open(path).convert("RGBA")
 				if size:
 					image = image.resize(size, Image.ANTIALIAS)
 				buf = BytesIO()
@@ -434,15 +434,7 @@ def _build_login_window():
 	if G.imagefile:
 		image = load_image(G.imagefile, for_ctk_label=True)
 		if image:
-			if isinstance(image, tk.PhotoImage):
-				logo_bg = None
-				try:
-					logo_bg = container.cget('fg_color')
-				except Exception:
-					pass
-				logo = tk.Label(container, image=image, text='', bd=0)
-			else:
-				logo = ctk.CTkLabel(container, image=image, text='')
+			logo = ctk.CTkLabel(container, image=image, text='', fg_color='transparent')
 			logo.image = image
 			logo.pack(pady=(0, 12))
 	title_label = ctk.CTkLabel(container, text=G.title, font=get_font('TITLE_FONT'))
@@ -870,15 +862,7 @@ def showvms():
 	if G.imagefile:
 		image = load_image(G.imagefile, for_ctk_label=True)
 		if image:
-			if isinstance(image, tk.PhotoImage):
-				logo_bg = None
-				try:
-					logo_bg = container.cget('fg_color')
-				except Exception:
-					pass
-				logo = tk.Label(container, image=image, text='', bd=0)
-			else:
-				logo = ctk.CTkLabel(container, image=image, text='')
+			logo = ctk.CTkLabel(container, image=image, text='', fg_color='transparent')
 			logo.image = image
 			logo.pack(pady=(0, 12))
 	title_label = ctk.CTkLabel(container, text=G.title, font=get_font('TITLE_FONT'))
