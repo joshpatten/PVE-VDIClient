@@ -265,8 +265,8 @@ def get_font(name):
 
 
 def center_window(window):
-	window.update_idletasks()
 	window.deiconify()
+	window.update()
 	width = window.winfo_reqwidth()
 	height = window.winfo_reqheight()
 	screen_width = window.winfo_screenwidth()
@@ -274,7 +274,7 @@ def center_window(window):
 	x = max(0, (screen_width - width) // 2)
 	y = max(0, (screen_height - height) // 2)
 	window.geometry(f"{width}x{height}+{x}+{y}")
-	window.update_idletasks()
+	window.update()
 
 class VDIWindow(ctk.CTkToplevel):
 	def __init__(self, *args, **kwargs):
@@ -282,7 +282,7 @@ class VDIWindow(ctk.CTkToplevel):
 
 def apply_kiosk_state(window):
 	if G.kiosk:
-		window.update_idletasks()
+		window.update()
 		# Set window type to 'toolbar' - this is an X11 hint that often removes decorations
 		# and taskbar entries, but behavior can vary by WM.
 		try:
@@ -382,6 +382,7 @@ def win_popup(message):
 	center_window(window)
 	window.close = window.destroy
 	apply_kiosk_state(window)
+	window.update()
 	return window
 
 
@@ -462,7 +463,7 @@ def _build_login_window():
 	if G.hosts[G.current_hostset]['pwresetcmd']:
 		pwreset_button = ctk.CTkButton(container, text='Password Reset', font=get_font('BUTTON_FONT'))
 		pwreset_button.pack(fill='x', pady=(12, 0))
-	window.update_idletasks()
+	window.update()
 	width = window.winfo_reqwidth()
 	height = window.winfo_reqheight()
 	x = max(0, (window.winfo_screenwidth() - width) // 2)
