@@ -354,14 +354,21 @@ def load_image(path, for_ctk_label=False, size=None):
 def set_window_icon(window):
 	if not G.icon or not os.path.exists(G.icon):
 		return
-	try:
-		icon = load_image(G.icon)
-		if icon:
-			# iconphoto(True, ...) sets the icon for this window and as the default for the app
-			window.iconphoto(True, icon)
-			window._icon_image = icon
-	except Exception:
-		pass
+	def _apply_icon():
+		try:
+			if os.name == 'nt' and G.icon.lower().endswith('.ico'):
+				# Use the native Windows method for .ico files to ensure taskbar/titlebar consistency
+				window.wm_iconbitmap(G.icon)
+			else:
+				icon = load_image(G.icon)
+				if icon:
+					# iconphoto(True, ...) sets the icon for this window and future windows
+					window.iconphoto(True, icon)
+					window._icon_image = icon # Keep a reference to prevent garbage collection
+		except Exception:
+			pass
+	# Delaying execution by 200ms allows CustomTkinter to finish its own icon initialization first
+	window.after(200, _apply_icon)
 
 
 def win_popup(message):
