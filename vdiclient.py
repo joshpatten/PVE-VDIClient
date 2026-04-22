@@ -50,7 +50,7 @@ class G:
 	BUTTON_FONT = {'size': 18}
 
 
-def loadconfig(config_location = None, config_type='file', config_username = None, config_password = None, ssl_verify = True):
+def loadconfig(config_location = None, config_type='file', config_username = None, config_password = None, ssl_verify = True, config_location_backup = None):
 	config = ConfigParser(delimiters='=')
 	if config_type == 'file':
 		if config_location:
@@ -77,13 +77,28 @@ def loadconfig(config_location = None, config_type='file', config_username = Non
 				config_location = location
 				break
 		if not config_location:
-			win_popup_button(f'Unable to read supplied configuration from any location!', 'OK')
-			return False
-		try:
-			config.read(config_location)
-		except Exception as e:
-			win_popup_button(f'Unable to read configuration file:\n{e!r}', 'OK')
-			return False
+			if not config_location_backup:
+				win_popup_button(f'Unable to read supplied configuration from any location!', 'OK')
+				return False
+			else:
+				#win_popup_button(f'{config_location_backup}', 'OK')
+				#return False
+				try:
+					if config_username and config_password:
+						r = requests.get(url=config_location_backup, auth=(config_username, config_password), verify = ssl_verify)
+					else:
+						r = requests.get(url=config_location_backup, verify = ssl_verify)
+					config.read_string(r.text)
+				except Exception as e:
+					win_popup_button(f"Unable to read configuration from URL!\n{e}", "OK")
+					return False
+
+		else:
+			try:
+				config.read(config_location)
+			except Exception as e:
+				win_popup_button(f'Unable to read configuration file:\n{e!r}', 'OK')
+				return False
 	elif config_type == 'http':
 		if not config_location:
 			win_popup_button('--config_type http defined, yet no URL provided in --config_location parameter!', 'OK')
