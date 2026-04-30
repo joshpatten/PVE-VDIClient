@@ -191,6 +191,7 @@ def loadconfig(config_location = None, config_type='file', config_username = Non
 					'verify_ssl' : True,
 					'pwresetcmd' : None,
 					'auto_vmid' : None,
+					'timeout' : 5,
 					'knock_seq': []
 				}
 				try:
@@ -213,6 +214,8 @@ def loadconfig(config_location = None, config_type='file', config_username = Non
 					G.hosts[group]['token_value'] = config[section]['token_value']
 				if 'auth_totp' in config[section]:
 					G.hosts[group]['totp'] = config[section].getboolean('auth_totp')
+				if 'auth_timeout' in config[section]:
+					G.hosts[group]['timeout'] = config[section].getint('auth_timeout')
 				if 'tls_verify' in config[section]:
 					G.hosts[group]['verify_ssl'] = config[section].getboolean('tls_verify')
 				if 'pwresetcmd' in config[section]:
@@ -723,7 +726,8 @@ def pveauth(username, passwd=None, totp=None):
 						user=f"{username}@{G.hosts[G.current_hostset]['backend']}",
 						token_name=G.hosts[G.current_hostset]['token_name'],
 						token_value=G.hosts[G.current_hostset]['token_value'],
-						verify_ssl=G.hosts[G.current_hostset]['verify_ssl'], 
+						verify_ssl=G.hosts[G.current_hostset]['verify_ssl'],
+						timeout=G.hosts[G.current_hostset]['timeout'],
 						port=port
 					)
 				elif totp:
@@ -733,6 +737,7 @@ def pveauth(username, passwd=None, totp=None):
 						otp=totp,
 						password=passwd,
 						verify_ssl=G.hosts[G.current_hostset]['verify_ssl'],
+						timeout=G.hosts[G.current_hostset]['timeout'],
 						port=port
 					)
 				else:
@@ -741,6 +746,7 @@ def pveauth(username, passwd=None, totp=None):
 						user=f"{username}@{G.hosts[G.current_hostset]['backend']}",
 						password=passwd,
 						verify_ssl=G.hosts[G.current_hostset]['verify_ssl'],
+						timeout=G.hosts[G.current_hostset]['timeout'],
 						port=port
 					)
 				connected = True
