@@ -1,0 +1,29 @@
+[General]
+# Configuração do BIA DATACENTER VDI Client
+title = BIA DATACENTER
+theme = dark
+icon = vdiicon.ico
+logo = vdiclient.png
+kiosk = False
+fullscreen = True
+inidebug = False
+guest_type = both
+window_width = 1000
+window_height = 700
+page_size = 10
+timeout = 0
+
+# Cluster de Proxmox Padrão (10.10.10.50)
+[Hosts.PVE]
+hostpool = {
+               "10.10.10.50" : 8006
+           }
+auth_backend = pve
+auth_totp = false
+tls_verify = false
+
+# Descomente abaixo para usar autenticação com token API
+# Deixe comentado para usar senha
+#user = usuario
+#token_name = token-name
+#token_value = xxx-xxx-xxx-xxx

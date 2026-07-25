@@ -16,6 +16,7 @@ import math
 import base64
 from time import sleep
 from io import StringIO, BytesIO
+import platform
 
 
 
@@ -233,6 +234,190 @@ def loadconfig(config_location = None, config_type='file', config_username = Non
 		for key in config['AdditionalParameters']:
 			G.addl_params[key] = config['AdditionalParameters'][key]
 	return True
+
+def get_user_config_dir():
+	if os.name == 'nt':
+		config_dir = os.path.join(os.getenv('APPDATA'), 'VDIClient')
+	else:
+		config_dir = os.path.expanduser('~/.config/VDIClient')
+
+	if not os.path.exists(config_dir):
+		try:
+			os.makedirs(config_dir)
+		except Exception:
+			pass
+	return config_dir
+
+def load_user_server_config():
+	config_dir = get_user_config_dir()
+	server_config_file = os.path.join(config_dir, 'server_config.json')
+
+	if os.path.exists(server_config_file):
+		try:
+			with open(server_config_file, 'r') as f:
+				return json.load(f)
+		except Exception:
+			pass
+
+	return {
+		'ip': '10.10.10.50',
+		'hostname': 'pve.local',
+		'port': 8006,
+		'backend': 'pve'
+	}
+
+def save_user_server_config(config):
+	config_dir = get_user_config_dir()
+	server_config_file = os.path.join(config_dir, 'server_config.json')
+
+	try:
+		with open(server_config_file, 'w') as f:
+			json.dump(config, f, indent=4)
+		return True
+	except Exception as e:
+		print(f"Error saving server config: {e}", file=sys.stderr)
+		return False
+
+def add_to_hosts_file(hostname, ip):
+	if os.name != 'nt':
+		return False
+
+	hosts_path = r'C:\Windows\System32\drivers\etc\hosts'
+
+	try:
+		with open(hosts_path, 'r') as f:
+			content = f.read()
+
+		lines = content.split('\n')
+		new_lines = []
+		found = False
+
+		for line in lines:
+			if not line.strip().startswith('#'):
+				parts = line.split()
+				if len(parts) > 1 and parts[1] == hostname:
+					new_lines.append(f'{ip}\t{hostname}')
+					found = True
+					continue
+			new_lines.append(line)
+
+		if not found:
+			if new_lines and new_lines[-1].strip():
+				new_lines.append('')
+			new_lines.append(f'{ip}\t{hostname}')
+
+		with open(hosts_path, 'w') as f:
+			f.write('\n'.join(new_lines))
+
+		return True
+	except PermissionError:
+		return False
+	except Exception as e:
+		print(f"Error updating hosts file: {e}", file=sys.stderr)
+		return False
+
+def config_server_window():
+	server_config = load_user_server_config()
+	root = get_hidden_root()
+	window = VDIWindow(root)
+	window.title('Server Configuration')
+	set_window_icon(window)
+
+	container = ctk.CTkFrame(window, corner_radius=15)
+	container.pack(padx=20, pady=20, fill='both', expand=True)
+
+	title_label = ctk.CTkLabel(container, text='Proxmox Server Configuration', font=get_font('TITLE_FONT'))
+	title_label.pack(pady=(0, 20))
+
+	ip_label = ctk.CTkLabel(container, text='Server IP Address:', font=get_font('LABEL_FONT'))
+	ip_label.pack(anchor='w', pady=(0, 4))
+	ip_entry = ctk.CTkEntry(container, placeholder_text='e.g., 192.168.1.100', font=get_font('DEFAULT_FONT'))
+	ip_entry.insert(0, server_config.get('ip', '10.10.10.50'))
+	ip_entry.pack(fill='x', pady=(0, 12))
+
+	hostname_label = ctk.CTkLabel(container, text='Hostname (for hosts file):', font=get_font('LABEL_FONT'))
+	hostname_label.pack(anchor='w', pady=(0, 4))
+	hostname_entry = ctk.CTkEntry(container, placeholder_text='e.g., pve.local', font=get_font('DEFAULT_FONT'))
+	hostname_entry.insert(0, server_config.get('hostname', 'pve.local'))
+	hostname_entry.pack(fill='x', pady=(0, 12))
+
+	port_label = ctk.CTkLabel(container, text='Port:', font=get_font('LABEL_FONT'))
+	port_label.pack(anchor='w', pady=(0, 4))
+	port_entry = ctk.CTkEntry(container, placeholder_text='8006', font=get_font('DEFAULT_FONT'))
+	port_entry.insert(0, str(server_config.get('port', 8006)))
+	port_entry.pack(fill='x', pady=(0, 12))
+
+	backend_label = ctk.CTkLabel(container, text='Auth Backend:', font=get_font('LABEL_FONT'))
+	backend_label.pack(anchor='w', pady=(0, 4))
+	backend_combo = ctk.CTkComboBox(container, values=['pve', 'pam'], font=get_font('DEFAULT_FONT'))
+	backend_combo.set(server_config.get('backend', 'pve'))
+	backend_combo.pack(fill='x', pady=(0, 20))
+
+	add_hosts_var = tk.BooleanVar(value=False)
+	add_hosts_check = ctk.CTkCheckBox(container, text='Add to Windows hosts file', variable=add_hosts_var, font=get_font('LABEL_FONT'))
+	if os.name == 'nt':
+		add_hosts_check.pack(anchor='w', pady=(0, 20))
+
+	result = {'saved': False}
+
+	def save_config():
+		try:
+			ip = ip_entry.get().strip()
+			hostname = hostname_entry.get().strip()
+			port = int(port_entry.get().strip())
+			backend = backend_combo.get()
+
+			if not ip:
+				win_popup_button('Please enter a server IP address', 'OK')
+				return
+
+			new_config = {
+				'ip': ip,
+				'hostname': hostname,
+				'port': port,
+				'backend': backend
+			}
+
+			if save_user_server_config(new_config):
+				if add_hosts_var.get() and os.name == 'nt' and hostname:
+					if add_to_hosts_file(hostname, ip):
+						win_popup_button('Configuration saved and hosts file updated!', 'OK')
+					else:
+						win_popup_button('Configuration saved.\n\nNote: Could not update hosts file (requires admin).\nPlease run as Administrator to add hosts entry.', 'OK')
+				else:
+					win_popup_button('Configuration saved!', 'OK')
+				result['saved'] = True
+				window.destroy()
+			else:
+				win_popup_button('Error saving configuration', 'OK')
+		except ValueError:
+			win_popup_button('Port must be a valid number', 'OK')
+		except Exception as e:
+			win_popup_button(f'Error: {str(e)}', 'OK')
+
+	def cancel():
+		window.destroy()
+
+	button_frame = ctk.CTkFrame(container, fg_color='transparent')
+	button_frame.pack(fill='x', pady=(0, 0))
+
+	save_button = ctk.CTkButton(button_frame, text='Save', command=save_config, font=get_font('BUTTON_FONT'))
+	save_button.pack(side='left', expand=True, fill='x', padx=(0, 8))
+
+	cancel_button = ctk.CTkButton(button_frame, text='Cancel', command=cancel, font=get_font('BUTTON_FONT'))
+	cancel_button.pack(side='left', expand=True, fill='x')
+
+	window.update()
+	width = window.winfo_reqwidth()
+	height = window.winfo_reqheight()
+	x = max(0, (window.winfo_screenwidth() - width) // 2)
+	y = max(0, (window.winfo_screenheight() - height) // 2)
+	window.geometry(f"{width}x{height}+{x}+{y}")
+	window.deiconify()
+	window.grab_set()
+	window.wait_window()
+
+	return result['saved']
 
 def get_hidden_root():
 	if getattr(G, '_hidden_root', None) is None:
@@ -467,7 +652,10 @@ def _build_login_window():
 	login_button = ctk.CTkButton(button_frame, text='Log In', font=get_font('BUTTON_FONT'))
 	login_button.pack(side='left', expand=True, fill='x', padx=(0, 8 if not G.kiosk else 0))
 	cancel_button = None
+	settings_button = None
 	if not G.kiosk:
+		settings_button = ctk.CTkButton(button_frame, text='Settings', font=get_font('BUTTON_FONT'), width=100)
+		settings_button.pack(side='right', padx=(8, 0))
 		cancel_button = ctk.CTkButton(button_frame, text='Cancel', font=get_font('BUTTON_FONT'))
 		cancel_button.pack(side='left', expand=True, fill='x')
 	pwreset_button = None
@@ -492,6 +680,7 @@ def _build_login_window():
 		'totp_entry': totp_entry,
 		'login_button': login_button,
 		'cancel_button': cancel_button,
+		'settings_button': settings_button,
 		'pwreset_button': pwreset_button
 	}
 
@@ -804,6 +993,10 @@ def loginwindow():
 	window_data['login_button'].configure(command=do_login)
 	if window_data['cancel_button']:
 		window_data['cancel_button'].configure(command=do_cancel)
+	if window_data['settings_button']:
+		def open_settings():
+			config_server_window()
+		window_data['settings_button'].configure(command=open_settings)
 	if window_data['pwreset_button']:
 		def open_reset():
 			try:
