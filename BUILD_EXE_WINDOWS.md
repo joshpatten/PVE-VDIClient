@@ -1,6 +1,24 @@
 # Guia: Build do BIA VDI Client .exe para Windows
 
-## 📋 Pré-requisitos
+## 🤖 Build automático (recomendado — sem precisar de máquina Windows)
+
+O repositório tem um workflow do GitHub Actions ([`.github/workflows/build-windows.yml`](.github/workflows/build-windows.yml)) que builda o `.exe` automaticamente em um runner Windows, sem precisar de nenhuma máquina Windows local.
+
+Para gerar um novo `.exe`:
+
+1. Crie e envie uma tag de versão:
+   ```bash
+   git tag v1.0.0
+   git push origin v1.0.0
+   ```
+2. Acompanhe o build na aba **Actions** do repositório no GitHub.
+3. Ao final, o `.exe` fica disponível:
+   - Como **artifact** do workflow (aba Actions → run → Artifacts)
+   - Como anexo de uma **Release** criada automaticamente para a tag
+
+Também é possível disparar o build manualmente pela aba Actions → "Build Windows executable" → "Run workflow", sem precisar criar uma tag.
+
+## 📋 Pré-requisitos (build manual)
 
 Antes de começar, você precisa ter instalado no seu Windows:
 
@@ -104,33 +122,43 @@ dist/
 
 ### Primeira Execução
 
-1. Clique em **"Settings"** na tela de login
-2. Configure:
-   - **Server IP Address**: IP do seu Proxmox (ex: 10.10.10.50)
-   - **Hostname**: Nome para arquivo hosts (ex: pve.local)
-   - **Port**: Porta Proxmox (padrão: 8006)
-   - **Auth Backend**: tipo de autenticação (pve ou pam)
+Se não houver um `vdiclient.ini` (nem local, nem em `%APPDATA%\VDIClient\` ou `%PROGRAMFILES%\VDIClient\`), o programa abre automaticamente a janela **"Gerenciar Servidores Proxmox"** e pede para cadastrar ao menos um servidor antes de continuar.
 
-3. Se desejar, marque **"Add to Windows hosts file"** para:
-   - Adicionar entrada em `C:\Windows\System32\drivers\etc\hosts`
-   - ⚠️ Requer execução como Administrador
+A qualquer momento, clique em **"Settings"** na tela de login para adicionar, editar ou remover servidores. Para cada servidor você define:
+
+- **Nome de exibição**: como o servidor aparece para o usuário (ex: "Datacenter Matriz")
+- **IP / Endereço do servidor**
+- **Hostname** (opcional, usado apenas se marcar a opção de gravar no arquivo hosts)
+- **Porta** (padrão: 8006)
+- **Backend de autenticação**: pve ou pam
+- **Verificar certificado TLS**
+
+Se desejar, marque **"Adicionar ao arquivo hosts do Windows"** para gravar a entrada em `C:\Windows\System32\drivers\etc\hosts` (⚠️ requer execução como Administrador).
+
+Você pode cadastrar quantos servidores quiser — todos aparecem no seletor "Server Group" da tela de login.
 
 ### Arquivo de Configuração
 
-A configuração é salva em:
+Os servidores cadastrados pelo usuário ficam salvos em:
 ```
-C:\Users\[seu_usuario]\AppData\Roaming\VDIClient\server_config.json
+C:\Users\[seu_usuario]\AppData\Roaming\VDIClient\servers.json
 ```
 
 Exemplo:
 ```json
 {
-    "ip": "10.10.10.50",
-    "hostname": "pve.local",
-    "port": 8006,
-    "backend": "pve"
+    "groups": {
+        "Datacenter Matriz": {
+            "hostpool": [{"host": "10.10.10.50", "port": 8006}],
+            "hostname": "pve.local",
+            "backend": "pve",
+            "verify_ssl": false
+        }
+    }
 }
 ```
+
+Esses servidores são somados aos definidos por um `vdiclient.ini` administrativo, se houver um.
 
 ## 🖼️ Customização da Logo
 

@@ -51,32 +51,36 @@ class G:
 	BUTTON_FONT = {'size': 18}
 
 
+def find_ini_location(config_location=None):
+	"""Locate the admin-provided vdiclient.ini, if any. Returns None if not found (not an error:
+	the app can still run using only user-managed servers from the settings UI)."""
+	if config_location:
+		return config_location if os.path.isfile(config_location) else None
+	if os.name == 'nt': # Windows
+		config_list = [
+			f'{os.getenv("APPDATA")}\\VDIClient\\vdiclient.ini',
+			f'{os.getenv("PROGRAMFILES")}\\VDIClient\\vdiclient.ini',
+			f'{os.getenv("PROGRAMFILES(x86)")}\\VDIClient\\vdiclient.ini',
+			'C:\\Program Files\\VDIClient\\vdiclient.ini'
+		]
+	elif os.name == 'posix': #Linux
+		config_list = [
+			os.path.expanduser('~/.config/VDIClient/vdiclient.ini'),
+			'/etc/vdiclient/vdiclient.ini',
+			'/usr/local/etc/vdiclient/vdiclient.ini'
+		]
+	for location in config_list:
+		if os.path.exists(location):
+			return location
+	return None
+
 def loadconfig(config_location = None, config_type='file', config_username = None, config_password = None, ssl_verify = True):
 	config = ConfigParser(delimiters='=')
 	if config_type == 'file':
-		if config_location:
-			if not os.path.isfile(config_location):
-				win_popup_button(f'Unable to read supplied configuration:\n{config_location} does not exist!', 'OK')
-				return False
-		else:
-			if os.name == 'nt': # Windows
-				config_list = [
-					f'{os.getenv("APPDATA")}\\VDIClient\\vdiclient.ini',
-					f'{os.getenv("PROGRAMFILES")}\\VDIClient\\vdiclient.ini',
-					f'{os.getenv("PROGRAMFILES(x86)")}\\VDIClient\\vdiclient.ini',
-					'C:\\Program Files\\VDIClient\\vdiclient.ini'
-				]
-				
-			elif os.name == 'posix': #Linux
-				config_list = [
-					os.path.expanduser('~/.config/VDIClient/vdiclient.ini'),
-					'/etc/vdiclient/vdiclient.ini',
-					'/usr/local/etc/vdiclient/vdiclient.ini'
-				]
-		for location in config_list:
-			if os.path.exists(location):
-				config_location = location
-				break
+		if config_location and not os.path.isfile(config_location):
+			win_popup_button(f'Unable to read supplied configuration:\n{config_location} does not exist!', 'OK')
+			return False
+		config_location = find_ini_location(config_location)
 		if not config_location:
 			win_popup_button(f'Unable to read supplied configuration from any location!', 'OK')
 			return False
@@ -248,35 +252,45 @@ def get_user_config_dir():
 			pass
 	return config_dir
 
-def load_user_server_config():
-	config_dir = get_user_config_dir()
-	server_config_file = os.path.join(config_dir, 'server_config.json')
+def get_user_servers_path():
+	return os.path.join(get_user_config_dir(), 'servers.json')
 
-	if os.path.exists(server_config_file):
+def load_user_servers():
+	servers_file = get_user_servers_path()
+	if os.path.exists(servers_file):
 		try:
-			with open(server_config_file, 'r') as f:
-				return json.load(f)
+			with open(servers_file, 'r') as f:
+				data = json.load(f)
+				if isinstance(data, dict) and isinstance(data.get('groups'), dict):
+					return data['groups']
 		except Exception:
 			pass
+	return {}
 
-	return {
-		'ip': '10.10.10.50',
-		'hostname': 'pve.local',
-		'port': 8006,
-		'backend': 'pve'
-	}
-
-def save_user_server_config(config):
-	config_dir = get_user_config_dir()
-	server_config_file = os.path.join(config_dir, 'server_config.json')
-
+def save_user_servers(groups):
+	servers_file = get_user_servers_path()
 	try:
-		with open(server_config_file, 'w') as f:
-			json.dump(config, f, indent=4)
+		with open(servers_file, 'w') as f:
+			json.dump({'groups': groups}, f, indent=4)
 		return True
 	except Exception as e:
-		print(f"Error saving server config: {e}", file=sys.stderr)
+		print(f"Error saving servers configuration: {e}", file=sys.stderr)
 		return False
+
+def merge_user_servers():
+	for name, group in load_user_servers().items():
+		G.hosts[name] = {
+			'hostpool': group.get('hostpool', []),
+			'backend': group.get('backend', 'pve'),
+			'user': group.get('user', ''),
+			'token_name': group.get('token_name'),
+			'token_value': group.get('token_value'),
+			'totp': group.get('totp', False),
+			'verify_ssl': group.get('verify_ssl', False),
+			'pwresetcmd': group.get('pwresetcmd'),
+			'auto_vmid': group.get('auto_vmid'),
+			'knock_seq': group.get('knock_seq', [])
+		}
 
 def add_to_hosts_file(hostname, ip):
 	if os.name != 'nt':
@@ -316,84 +330,97 @@ def add_to_hosts_file(hostname, ip):
 		print(f"Error updating hosts file: {e}", file=sys.stderr)
 		return False
 
-def config_server_window():
-	server_config = load_user_server_config()
-	root = get_hidden_root()
-	window = VDIWindow(root)
-	window.title('Server Configuration')
+def server_edit_form(parent_window, existing_name=None, existing_group=None):
+	"""Modal form to add or edit a single Proxmox server entry. Returns True if saved."""
+	window = VDIWindow(parent_window)
+	window.title('Editar Servidor' if existing_name else 'Adicionar Servidor')
 	set_window_icon(window)
+	window.resizable(False, False)
 
 	container = ctk.CTkFrame(window, corner_radius=15)
 	container.pack(padx=20, pady=20, fill='both', expand=True)
 
-	title_label = ctk.CTkLabel(container, text='Proxmox Server Configuration', font=get_font('TITLE_FONT'))
+	title_label = ctk.CTkLabel(container, text='Editar Servidor Proxmox' if existing_name else 'Adicionar Servidor Proxmox', font=get_font('TITLE_FONT'))
 	title_label.pack(pady=(0, 20))
 
-	ip_label = ctk.CTkLabel(container, text='Server IP Address:', font=get_font('LABEL_FONT'))
+	existing_host = existing_group['hostpool'][0] if existing_group and existing_group.get('hostpool') else {}
+
+	name_label = ctk.CTkLabel(container, text='Nome de exibição:', font=get_font('LABEL_FONT'))
+	name_label.pack(anchor='w', pady=(0, 4))
+	name_entry = ctk.CTkEntry(container, placeholder_text='ex.: Datacenter Matriz', font=get_font('DEFAULT_FONT'))
+	name_entry.insert(0, existing_name or '')
+	name_entry.pack(fill='x', pady=(0, 12))
+
+	ip_label = ctk.CTkLabel(container, text='IP / Endereço do servidor:', font=get_font('LABEL_FONT'))
 	ip_label.pack(anchor='w', pady=(0, 4))
-	ip_entry = ctk.CTkEntry(container, placeholder_text='e.g., 192.168.1.100', font=get_font('DEFAULT_FONT'))
-	ip_entry.insert(0, server_config.get('ip', '10.10.10.50'))
+	ip_entry = ctk.CTkEntry(container, placeholder_text='ex.: 192.168.1.100', font=get_font('DEFAULT_FONT'))
+	ip_entry.insert(0, existing_host.get('host', ''))
 	ip_entry.pack(fill='x', pady=(0, 12))
 
-	hostname_label = ctk.CTkLabel(container, text='Hostname (for hosts file):', font=get_font('LABEL_FONT'))
+	hostname_label = ctk.CTkLabel(container, text='Hostname (opcional, para o arquivo hosts):', font=get_font('LABEL_FONT'))
 	hostname_label.pack(anchor='w', pady=(0, 4))
-	hostname_entry = ctk.CTkEntry(container, placeholder_text='e.g., pve.local', font=get_font('DEFAULT_FONT'))
-	hostname_entry.insert(0, server_config.get('hostname', 'pve.local'))
+	hostname_entry = ctk.CTkEntry(container, placeholder_text='ex.: pve.local', font=get_font('DEFAULT_FONT'))
+	hostname_entry.insert(0, existing_group.get('hostname', '') if existing_group else '')
 	hostname_entry.pack(fill='x', pady=(0, 12))
 
-	port_label = ctk.CTkLabel(container, text='Port:', font=get_font('LABEL_FONT'))
+	port_label = ctk.CTkLabel(container, text='Porta:', font=get_font('LABEL_FONT'))
 	port_label.pack(anchor='w', pady=(0, 4))
 	port_entry = ctk.CTkEntry(container, placeholder_text='8006', font=get_font('DEFAULT_FONT'))
-	port_entry.insert(0, str(server_config.get('port', 8006)))
+	port_entry.insert(0, str(existing_host.get('port', 8006)))
 	port_entry.pack(fill='x', pady=(0, 12))
 
-	backend_label = ctk.CTkLabel(container, text='Auth Backend:', font=get_font('LABEL_FONT'))
+	backend_label = ctk.CTkLabel(container, text='Backend de autenticação:', font=get_font('LABEL_FONT'))
 	backend_label.pack(anchor='w', pady=(0, 4))
 	backend_combo = ctk.CTkComboBox(container, values=['pve', 'pam'], font=get_font('DEFAULT_FONT'))
-	backend_combo.set(server_config.get('backend', 'pve'))
-	backend_combo.pack(fill='x', pady=(0, 20))
+	backend_combo.set(existing_group.get('backend', 'pve') if existing_group else 'pve')
+	backend_combo.pack(fill='x', pady=(0, 12))
+
+	verify_ssl_var = tk.BooleanVar(value=existing_group.get('verify_ssl', False) if existing_group else False)
+	verify_ssl_check = ctk.CTkCheckBox(container, text='Verificar certificado TLS', variable=verify_ssl_var, font=get_font('LABEL_FONT'))
+	verify_ssl_check.pack(anchor='w', pady=(0, 12))
 
 	add_hosts_var = tk.BooleanVar(value=False)
-	add_hosts_check = ctk.CTkCheckBox(container, text='Add to Windows hosts file', variable=add_hosts_var, font=get_font('LABEL_FONT'))
+	add_hosts_check = ctk.CTkCheckBox(container, text='Adicionar ao arquivo hosts do Windows', variable=add_hosts_var, font=get_font('LABEL_FONT'))
 	if os.name == 'nt':
 		add_hosts_check.pack(anchor='w', pady=(0, 20))
 
-	result = {'saved': False}
+	result = {'saved': False, 'name': existing_name, 'group': None}
 
-	def save_config():
+	def save_entry():
 		try:
+			name = name_entry.get().strip()
 			ip = ip_entry.get().strip()
 			hostname = hostname_entry.get().strip()
 			port = int(port_entry.get().strip())
 			backend = backend_combo.get()
 
+			if not name:
+				win_popup_button('Por favor, informe um nome de exibição', 'OK')
+				return
 			if not ip:
-				win_popup_button('Please enter a server IP address', 'OK')
+				win_popup_button('Por favor, informe o IP/endereço do servidor', 'OK')
+				return
+			if name != existing_name and name in (parent_window.servers_groups or {}):
+				win_popup_button('Já existe um servidor com esse nome, escolha outro', 'OK')
 				return
 
-			new_config = {
-				'ip': ip,
+			result['group'] = {
+				'hostpool': [{'host': ip, 'port': port}],
 				'hostname': hostname,
-				'port': port,
-				'backend': backend
+				'backend': backend,
+				'verify_ssl': verify_ssl_var.get()
 			}
+			result['name'] = name
+			result['saved'] = True
 
-			if save_user_server_config(new_config):
-				if add_hosts_var.get() and os.name == 'nt' and hostname:
-					if add_to_hosts_file(hostname, ip):
-						win_popup_button('Configuration saved and hosts file updated!', 'OK')
-					else:
-						win_popup_button('Configuration saved.\n\nNote: Could not update hosts file (requires admin).\nPlease run as Administrator to add hosts entry.', 'OK')
-				else:
-					win_popup_button('Configuration saved!', 'OK')
-				result['saved'] = True
-				window.destroy()
-			else:
-				win_popup_button('Error saving configuration', 'OK')
+			if add_hosts_var.get() and os.name == 'nt' and hostname:
+				if not add_to_hosts_file(hostname, ip):
+					win_popup_button('Servidor salvo.\n\nObs: não foi possível atualizar o arquivo hosts (requer administrador).', 'OK')
+			window.destroy()
 		except ValueError:
-			win_popup_button('Port must be a valid number', 'OK')
+			win_popup_button('A porta deve ser um número válido', 'OK')
 		except Exception as e:
-			win_popup_button(f'Error: {str(e)}', 'OK')
+			win_popup_button(f'Erro: {str(e)}', 'OK')
 
 	def cancel():
 		window.destroy()
@@ -401,10 +428,10 @@ def config_server_window():
 	button_frame = ctk.CTkFrame(container, fg_color='transparent')
 	button_frame.pack(fill='x', pady=(0, 0))
 
-	save_button = ctk.CTkButton(button_frame, text='Save', command=save_config, font=get_font('BUTTON_FONT'))
+	save_button = ctk.CTkButton(button_frame, text='Salvar', command=save_entry, font=get_font('BUTTON_FONT'))
 	save_button.pack(side='left', expand=True, fill='x', padx=(0, 8))
 
-	cancel_button = ctk.CTkButton(button_frame, text='Cancel', command=cancel, font=get_font('BUTTON_FONT'))
+	cancel_button = ctk.CTkButton(button_frame, text='Cancelar', command=cancel, font=get_font('BUTTON_FONT'))
 	cancel_button.pack(side='left', expand=True, fill='x')
 
 	window.update()
@@ -417,7 +444,111 @@ def config_server_window():
 	window.grab_set()
 	window.wait_window()
 
-	return result['saved']
+	return result
+
+
+def manage_servers_window(force=False):
+	"""Full server management UI: list, add, edit and remove Proxmox servers.
+	Entries are stored per-user (servers.json) and merged into G.hosts on save.
+	Returns True if the saved server list changed."""
+	root = get_hidden_root()
+	window = VDIWindow(root)
+	window.title('Gerenciar Servidores Proxmox')
+	set_window_icon(window)
+	if force:
+		window.protocol('WM_DELETE_WINDOW', lambda: None)
+
+	groups = load_user_servers()
+	window.servers_groups = groups
+	changed = {'value': False}
+
+	container = ctk.CTkFrame(window, corner_radius=15)
+	container.pack(padx=20, pady=20, fill='both', expand=True)
+
+	title_label = ctk.CTkLabel(container, text='Servidores Proxmox', font=get_font('TITLE_FONT'))
+	title_label.pack(pady=(0, 6))
+
+	if force:
+		subtitle = ctk.CTkLabel(container, text='Adicione ao menos um servidor Proxmox para continuar', font=get_font('LABEL_FONT'))
+		subtitle.pack(pady=(0, 14))
+
+	list_frame = ctk.CTkScrollableFrame(container, width=420, height=260)
+	list_frame.pack(fill='both', expand=True, pady=(0, 14))
+
+	def refresh_list():
+		for child in list_frame.winfo_children():
+			child.destroy()
+		if not groups:
+			empty_label = ctk.CTkLabel(list_frame, text='Nenhum servidor cadastrado ainda', font=get_font('DEFAULT_FONT'))
+			empty_label.pack(pady=20)
+			return
+		for name in sorted(groups.keys()):
+			group = groups[name]
+			host = group['hostpool'][0] if group.get('hostpool') else {}
+			row = ctk.CTkFrame(list_frame, corner_radius=10)
+			row.pack(fill='x', pady=(0, 8), padx=4)
+			info_frame = ctk.CTkFrame(row, fg_color='transparent')
+			info_frame.pack(side='left', fill='x', expand=True, padx=(8, 8), pady=8)
+			ctk.CTkLabel(info_frame, text=name, font=get_font('LABEL_FONT')).pack(anchor='w')
+			ctk.CTkLabel(info_frame, text=f"{host.get('host', '?')}:{host.get('port', '?')} ({group.get('backend', 'pve')})", font=get_font('DEFAULT_FONT')).pack(anchor='w')
+			btn_frame = ctk.CTkFrame(row, fg_color='transparent')
+			btn_frame.pack(side='right', padx=(0, 8), pady=8)
+			edit_btn = ctk.CTkButton(btn_frame, text='Editar', width=80, command=lambda n=name: open_edit(n), font=get_font('DEFAULT_FONT'))
+			edit_btn.pack(side='left', padx=(0, 6))
+			remove_btn = ctk.CTkButton(btn_frame, text='Remover', width=80, fg_color='#d65f5f', hover_color='#d85f5f', command=lambda n=name: remove_entry(n), font=get_font('DEFAULT_FONT'))
+			remove_btn.pack(side='left')
+
+	def open_add():
+		window.servers_groups = groups
+		res = server_edit_form(window)
+		if res['saved']:
+			groups[res['name']] = res['group']
+			save_user_servers(groups)
+			changed['value'] = True
+			refresh_list()
+
+	def open_edit(name):
+		window.servers_groups = {k: v for k, v in groups.items() if k != name}
+		res = server_edit_form(window, existing_name=name, existing_group=groups[name])
+		if res['saved']:
+			if res['name'] != name:
+				del groups[name]
+			groups[res['name']] = res['group']
+			save_user_servers(groups)
+			changed['value'] = True
+			refresh_list()
+
+	def remove_entry(name):
+		del groups[name]
+		save_user_servers(groups)
+		changed['value'] = True
+		refresh_list()
+
+	refresh_list()
+
+	add_button = ctk.CTkButton(container, text='+ Adicionar Servidor', command=open_add, font=get_font('BUTTON_FONT'))
+	add_button.pack(fill='x', pady=(0, 12))
+
+	def close_window():
+		if force and not groups:
+			win_popup_button('É necessário adicionar ao menos um servidor Proxmox', 'OK')
+			return
+		window.destroy()
+
+	close_button = ctk.CTkButton(container, text='Fechar', command=close_window, font=get_font('BUTTON_FONT'))
+	close_button.pack(fill='x')
+
+	window.update()
+	width = window.winfo_reqwidth()
+	height = window.winfo_reqheight()
+	x = max(0, (window.winfo_screenwidth() - width) // 2)
+	y = max(0, (window.winfo_screenheight() - height) // 2)
+	window.geometry(f"{width}x{height}+{x}+{y}")
+	window.deiconify()
+	window.grab_set()
+	window.wait_window()
+
+	return changed['value']
 
 def get_hidden_root():
 	if getattr(G, '_hidden_root', None) is None:
@@ -995,7 +1126,11 @@ def loginwindow():
 		window_data['cancel_button'].configure(command=do_cancel)
 	if window_data['settings_button']:
 		def open_settings():
-			config_server_window()
+			if manage_servers_window():
+				merge_user_servers()
+				result['action'] = 'switch'
+				result['group'] = G.current_hostset if G.current_hostset in G.hosts else next(iter(G.hosts), 'DEFAULT')
+				window.destroy()
 		window_data['settings_button'].configure(command=open_settings)
 	if window_data['pwreset_button']:
 		def open_reset():
@@ -1255,8 +1390,19 @@ def main():
 		print('default color theme: blue')
 		return
 	setcmd()
-	if not loadconfig(config_location=args.config_location, config_type=args.config_type, config_username=args.config_username, config_password=args.config_password, ssl_verify=args.ignore_ssl):
-		return False
+	ini_present = find_ini_location(args.config_location) if args.config_type == 'file' else bool(args.config_location)
+	if ini_present:
+		if not loadconfig(config_location=args.config_location, config_type=args.config_type, config_username=args.config_username, config_password=args.config_password, ssl_verify=args.ignore_ssl):
+			return False
+	merge_user_servers()
+	if not G.hosts:
+		# No admin config and no user-added servers yet: ask the user to add at least one Proxmox server
+		manage_servers_window(force=True)
+		merge_user_servers()
+		if not G.hosts:
+			return 1
+	if G.current_hostset not in G.hosts:
+		G.current_hostset = next(iter(G.hosts))
 	apply_theme()
 	loggedin = False
 	switching = False
